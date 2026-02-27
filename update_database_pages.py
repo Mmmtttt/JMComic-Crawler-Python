@@ -1,15 +1,24 @@
-import json
+import sys
 import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'lib', 'src'))
+
+import json
 import jmcomic
 import argparse
 
-# 配置信息
-CONFIG = {
-    "download_dir": "pictures",
-    "database_file": "comics_database.json"
-}
+def load_config():
+    config_file = os.path.join(os.path.dirname(__file__), 'config.json')
+    if os.path.exists(config_file):
+        with open(config_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    else:
+        return {
+            "download_dir": "pictures",
+            "output_json": "comics_database.json"
+        }
 
-# 创建配置选项
+CONFIG = load_config()
+
 option_dict = {
     'download': {
         'dir': CONFIG["download_dir"],
@@ -110,14 +119,12 @@ parser.add_argument('--mode', choices=['simple', 'precise'], default='simple',
                     help="更新模式: simple (默认，以本地下载数量为准) 或 precise (从网页获取信息)")
 args = parser.parse_args()
 
-# 读取数据库
 print("正在读取数据库...")
-with open(CONFIG["database_file"], 'r', encoding='utf-8') as f:
+with open(CONFIG["output_json"], 'r', encoding='utf-8') as f:
     database = json.load(f)
 
 print(f"数据库中共有 {len(database['albums'])} 个漫画")
 
-# 根据选择的模式更新数据库
 print(f"\n使用 {args.mode} 模式更新数据库...")
 if args.mode == 'simple':
     updated_count = simple_update(database)
@@ -126,13 +133,11 @@ else:
 
 print(f"\n共更新了 {updated_count} 个漫画的总页数")
 
-# 保存数据库
-with open(CONFIG["database_file"], 'w', encoding='utf-8') as f:
+with open(CONFIG["output_json"], 'w', encoding='utf-8') as f:
     json.dump(database, f, ensure_ascii=False, indent=2)
 
-print(f"数据库已保存到 {CONFIG['database_file']}")
+print(f"数据库已保存到 {CONFIG['output_json']}")
 
-# 统计整体下载进度
 total_images = 0
 downloaded_comics = 0
 for album_info in database["albums"]:
