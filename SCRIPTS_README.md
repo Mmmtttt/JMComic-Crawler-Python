@@ -1,10 +1,23 @@
-# JMComic-Crawler-Python 脚本使用说明
+# JMComic-Crawler-Python API
+
+禁漫天堂爬虫 API，支持漫画搜索、下载、收藏管理等功能。
+
+## 功能特性
+
+- **漫画详情抓取**：标题、作者、标签、页数、封面等
+- **漫画下载**：支持单漫画下载、批量下载、断点续传
+- **收藏管理**：获取收藏夹、同步收藏、智能检测新漫画
+- **搜索功能**：关键词搜索、获取详细信息
+- **数据库管理**：本地数据库存储、进度追踪
+- **API 接口**：模块化设计，可直接作为库使用
 
 ## 目录结构
 
 ```
 JMComic-Crawler-Python/
 ├── config.json                    # 统一配置文件
+├── jmcomic_api.py                 # 核心 API 模块
+├── utils.py                       # 工具函数模块
 ├── comics_database.json           # 漫画数据库
 ├── download_progress.json         # 下载进度记录
 ├── favorite_comics.txt            # 收藏漫画ID列表
@@ -23,250 +36,332 @@ JMComic-Crawler-Python/
 └── search_comics.py                   # 搜索漫画并获取详细信息
 ```
 
----
+## 安装
 
-## 配置文件 (config.json)
+```bash
+pip install -r requirements.txt
+```
 
-所有脚本统一从 `config.json` 读取配置：
+## 配置
+
+编辑 `config.json` 填入你的账号信息：
 
 ```json
 {
-    "username": "your_username",           # 禁漫账号用户名
-    "password": "your_password",           # 禁漫账号密码
-    "download_dir": "pictures",            # 下载目录
-    "output_json": "comics_database.json", # 数据库文件路径
-    "progress_file": "download_progress.json", # 进度文件路径
-    "favorite_list_file": "favorite_comics.txt", # 收藏ID列表文件
-    "consecutive_hit_threshold": 10,       # 连续命中阈值
-    "collection_name": "我的最爱"           # 收藏夹名称
+    "username": "your_username",
+    "password": "your_password",
+    "download_dir": "pictures",
+    "output_json": "comics_database.json",
+    "progress_file": "download_progress.json",
+    "favorite_list_file": "favorite_comics.txt",
+    "consecutive_hit_threshold": 10,
+    "collection_name": "我的最爱"
 }
 ```
 
 ---
 
-## 脚本详细说明
+## API 接口
+
+### 基础接口
+
+```python
+from jmcomic_api import load_config, get_client, get_option
+
+# 加载配置
+config = load_config()
+print(config['download_dir'])
+
+# 获取客户端（自动登录）
+client = get_client()
+
+# 使用指定账号登录
+client = get_client(username="user", password="pass")
+
+# 获取配置选项
+option = get_option()
+```
+
+### 漫画详情
+
+```python
+from jmcomic_api import get_album_detail
+
+# 获取漫画详情
+detail = get_album_detail(542774)
+print(detail['title'])      # 标题
+print(detail['author'])     # 作者
+print(detail['pages'])      # 页数
+print(detail['tags'])       # 标签
+```
+
+**输出格式**：
+```json
+{
+  "album_id": 542774,
+  "title": "[达磨さん转んだ] 欠损俱乐部 [中国翻译]",
+  "author": "达磨さん转んだ",
+  "pages": 34,
+  "cover_url": "https://cdn-msp3.18comic.vip/media/albums/542774.jpg",
+  "album_url": "https://18comic.vip/album/542774",
+  "tags": ["全彩", "断肢", "贫乳", "猎奇", "中文"],
+  "upload_date": "2024-01-01",
+  "update_date": "2024-01-15"
+}
+```
+
+### 漫画下载
+
+```python
+from jmcomic_api import download_album, get_local_progress, get_total_pages
+
+# 获取网络端图片总数
+total = get_total_pages(542774)
+print(f"网络端图片总数: {total}")
+
+# 下载漫画（自动显示进度）
+detail, success = download_album(542774)
+print(f"下载成功: {success}")
+print(f"本地图片数: {detail['local_pages']}")
+print(f"网络端图片总数: {detail['total_pages']}")
+
+# 使用进度回调实时获取下载进度
+def my_progress_callback(current, total, image_filename, status):
+    print(f"下载进度: [{current}/{total}] {image_filename}")
+
+detail, success = download_album(542774, progress_callback=my_progress_callback)
+
+# 获取本地下载进度
+local_count = get_local_progress(542774)
+print(f"已下载 {local_count} 张图片")
+
+# 指定下载目录
+detail, success = download_album(542774, download_dir="my_comics")
+
+# 关闭进度显示
+detail, success = download_album(542774, show_progress=False)
+```
+
+**download_album 返回值**：
+```python
+{
+    "album_id": 542774,
+    "title": "漫画标题",
+    "author": "作者",
+    "pages": 34,           # 网络端页数
+    "total_pages": 34,     # 网络端图片总数
+    "local_pages": 34,     # 本地已下载图片数
+    "downloaded": true,    # 是否下载成功
+    # ... 其他字段
+}
+```
+
+**进度回调参数**：
+- `current`: 当前下载的图片序号
+- `total`: 该章节的总图片数
+- `image_filename`: 图片文件名
+- `status`: 状态（"downloading"）
+
+**下载进度输出示例**：
+```
+正在获取漫画 542774 的信息...
+网络端图片总数: 34
+开始下载漫画 542774...
+下载完成: 34/34 张图片
+```
+
+### 搜索功能
+
+```python
+from jmcomic_api import search_comics, search_comics_full
+
+# 基础搜索（返回ID和标题）
+result = search_comics("砂漠", max_pages=2)
+print(f"共找到 {result['total']} 个结果")
+for item in result['results']:
+    print(f"{item['album_id']}: {item['title']}")
+
+# 完整搜索（获取详细信息）
+result = search_comics_full("砂漠", max_pages=1)
+for album in result['results']:
+    print(f"{album['album_id']}: {album['title']} ({album['pages']}页)")
+```
+
+**搜索结果格式**：
+```json
+{
+  "query": "砂漠",
+  "total": 77,
+  "page_count": 1,
+  "results": [
+    {
+      "album_id": 1190059,
+      "title": "石庭酱与我-我与小石庭...",
+      "author": "砂漠",
+      "pages": 199,
+      "tags": ["纯爱", "单行本", ...]
+    }
+  ]
+}
+```
+
+### 收藏管理
+
+```python
+from jmcomic_api import get_favorite_comics, get_favorite_comics_full
+
+# 获取收藏列表（基础信息）
+favorites = get_favorite_comics()
+print(f"共收藏 {favorites['total']} 本漫画")
+
+# 获取收藏列表（详细信息）
+favorites = get_favorite_comics_full()
+for album in favorites['comics']:
+    print(f"{album['album_id']}: {album['title']}")
+```
+
+### 批量下载
+
+```python
+from jmcomic_api import batch_download
+
+# 批量下载
+album_ids = [542774, 1024707, 427136]
+
+# 带进度回调
+def on_progress(current, total, album_id, status):
+    print(f"[{current}/{total}] {album_id}: {status}")
+
+stats = batch_download(album_ids, progress_callback=on_progress)
+print(f"成功: {stats['success']}, 跳过: {stats['skipped']}, 失败: {stats['failed']}")
+```
+
+### 同步收藏
+
+```python
+from jmcomic_api import sync_favorites
+
+# 同步收藏并下载新漫画
+result = sync_favorites(threshold=10, download=True)
+print(f"新增: {result['new']}, 下载: {result['downloaded']}")
+
+# 只检测新漫画，不下载
+result = sync_favorites(download=False)
+print(f"新增漫画: {result['new']}")
+```
+
+### 数据库操作
+
+```python
+from jmcomic_api import load_database, save_database, add_to_database
+
+# 加载数据库
+db = load_database()
+print(f"数据库中有 {len(db['albums'])} 个漫画")
+
+# 添加漫画到数据库
+album_detail = get_album_detail(542774)
+add_to_database(album_detail)
+
+# 保存数据库
+save_database(db)
+```
+
+---
+
+## 工具函数
+
+```python
+from utils import (
+    load_config, save_config,
+    load_json_file, save_json_file,
+    load_text_file, save_text_file,
+    get_download_stats, print_download_stats,
+    count_images, get_directory_size, format_file_size,
+    parse_album_ids, validate_album_id
+)
+
+# 获取下载统计
+stats = get_download_stats()
+print(f"已下载 {stats['downloaded_albums']} 个漫画")
+print(f"总大小 {stats['total_size_formatted']}")
+
+# 打印下载统计
+print_download_stats()
+
+# 解析漫画ID
+ids = parse_album_ids("123456,789012,123460-123470")
+print(ids)  # [123456, 789012, 123460, 123461, ..., 123470]
+
+# 验证漫画ID
+valid = validate_album_id("123456")  # True
+```
+
+---
+
+## 命令行脚本
 
 ### 1. get_comic_detail_and_download.py
 
-**用途**: 获取单个漫画的详情信息并下载
-
-**用法**: 直接运行，修改脚本中的 `comic_id` 变量
+获取单个漫画详情并下载。
 
 ```bash
 python get_comic_detail_and_download.py
 ```
 
-**示例输出**:
-```
-漫画详情信息:
-ID: 542774
-标题: [漫画标题]
-作者: [作者名]
-章节数: 1
-总页数: 30
-关键词: ['标签1', '标签2']
-
-章节信息:
-章节 1: [章节名] (ID: 542774, 图片数: 30)
-
-下载成功！
-所有图片已下载完成，共 30 张图片
-```
-
-**注意事项**:
-- 需要手动修改脚本中的 `comic_id` 变量来指定要下载的漫画
-- 下载的图片保存在 `pictures/[漫画ID]/` 目录下
-
----
+修改脚本中的 `comic_id` 变量指定漫画ID。
 
 ### 2. get_favorite_comics.py
 
-**用途**: 获取用户收藏夹中的所有漫画ID，保存到文件
+获取用户收藏夹中的所有漫画ID。
 
-**用法**: 
 ```bash
 python get_favorite_comics.py
 ```
 
-**输出文件**: `favorite_comics.txt`（每行一个漫画ID）
-
-**示例输出**:
-```
-正在登录...
-登录成功！
-正在获取收藏夹...
-共收藏了 598 本漫画
-正在获取第 2 页...
-正在获取第 3 页...
-...
-
-收藏的漫画ID列表:
-1. 1024707
-2. 427136
-3. 449314
-...
-
-漫画ID已保存到 favorite_comics.txt 文件中
-共获取到 598 个漫画ID
-```
-
-**注意事项**:
-- 需要在 `config.json` 中配置正确的用户名和密码
-- 获取的ID列表供 `batch_download_comics.py` 使用
-
----
+输出文件：`favorite_comics.txt`
 
 ### 3. batch_download_comics.py
 
-**用途**: 批量下载 `favorite_comics.txt` 中的所有漫画
+批量下载 `favorite_comics.txt` 中的所有漫画。
 
-**用法**: 
 ```bash
 python batch_download_comics.py
 ```
 
-**功能特性**:
-- 从数据库检查下载进度，跳过已完成的漫画
-- 支持断点续传
-- 维护下载进度记录
-- 自动更新数据库信息
-
-**示例输出**:
-```
-共找到 599 个漫画ID
-
-初始下载进度:
-总漫画数: 599
-已下载漫画: 0
-下载中漫画: 599
-未下载漫画: 0
-已下载图片: 42068
-
-[1/599] 漫画 1024707 已下载完成，跳过
-[2/599] 漫画 427136 已下载完成，跳过
-[3/599] 正在获取漫画 449314 的信息...
-  正在下载漫画 449314...
-  开始下载，已完成 0/16 张图片
-...
-```
-
-**输出文件**:
-- `pictures/[漫画ID]/` - 下载的图片
-- `comics_database.json` - 漫画信息数据库
-- `download_progress.json` - 下载进度记录
-
----
+功能：断点续传、进度追踪、自动更新数据库。
 
 ### 4. update_database_pages.py
 
-**用途**: 更新数据库中漫画的总页数
+更新数据库中漫画的总页数。
 
-**用法**: 
 ```bash
-# 简单模式（默认）：以本地已下载的图片数量为准
+# 简单模式：以本地已下载数量为准
 python update_database_pages.py
 
 # 精确模式：从网页获取实际页数
 python update_database_pages.py --mode precise
 ```
 
-**参数说明**:
-| 参数 | 说明 |
-|------|------|
-| `--mode` | 更新模式：`simple`（默认）或 `precise` |
-
-**模式区别**:
-- **simple**: 统计本地已下载的图片数量，更新数据库
-- **precise**: 从网页获取漫画的实际页数，更精确但速度较慢
-
-**示例输出**:
-```
-加载数据库: comics_database.json
-数据库中共有 600 个漫画
-
-模式: simple（以本地下载数量为准）
-
-[1/600] 漫画 1024707: 本地 199 张，数据库 199 张，无需更新
-[2/600] 漫画 427136: 本地 172 张，数据库 172 张，无需更新
-...
-
-更新完成！
-共更新了 5 个漫画的页数
-```
-
----
-
 ### 5. sync_favorites_and_download.py
 
-**用途**: 同步收藏夹并下载新漫画（整合了获取收藏和下载功能）
+同步收藏夹并下载新漫画。
 
-**用法**: 
 ```bash
-# 使用配置文件中的账号密码
+# 使用配置文件中的账号
 python sync_favorites_and_download.py
 
-# 命令行指定账号密码
-python sync_favorites_and_download.py --username "用户名" --password "密码"
+# 指定账号密码
+python sync_favorites_and_download.py --username "user" --password "pass"
 
 # 指定连续命中阈值
 python sync_favorites_and_download.py --threshold 15
 ```
 
-**参数说明**:
-| 参数 | 说明 |
-|------|------|
-| `--username` | 用户名（默认从配置文件读取） |
-| `--password` | 密码（默认从配置文件读取） |
-| `--threshold` | 连续命中阈值（默认10） |
-
-**功能特性**:
-- 获取用户收藏夹中的所有漫画ID
-- 在数据库中查找，跳过已存在的漫画
-- **连续命中检测**: 如果连续N个漫画ID都在数据库中找到，则提前终止检索
-- 只下载数据库中不存在的新漫画
-
-**示例输出**:
-```
-============================================================
-同步收藏夹并下载新漫画
-用户: mt1511318385
-连续命中阈值: 10
-============================================================
-
-数据库中已有 600 个漫画记录
-正在获取用户 mt1511318385 的收藏夹...
-正在登录...
-登录成功！
-正在获取收藏夹...
-共收藏了 598 本漫画
-
-开始检查漫画ID...
-策略: 连续 10 个漫画ID在数据库中找到则终止检索
-
-[1/598] 漫画 1024707 在数据库中找到 (连续命中: 1/10)
-[2/598] 漫画 427136 在数据库中找到 (连续命中: 2/10)
-...
-[10/598] 漫画 1215258 在数据库中找到 (连续命中: 10/10)
-
-连续 10 个漫画ID都在数据库中找到，终止检索
-跳过剩余 588 个漫画
-
-============================================================
-同步完成！
-原有漫画: 600
-新增漫画: 0
-跳过漫画: 0
-失败漫画: 0
-============================================================
-```
-
----
-
 ### 6. search_comics.py
 
-**用途**: 在禁漫网站搜索漫画，获取搜索结果的详细信息
+搜索漫画并获取详细信息。
 
-**用法**: 
 ```bash
 # 基本搜索
 python search_comics.py "关键词"
@@ -274,7 +369,7 @@ python search_comics.py "关键词"
 # 限制搜索页数
 python search_comics.py "砂漠" --max-pages 2
 
-# 只保存ID，不获取详细信息
+# 只保存ID
 python search_comics.py "砂漠" --skip-detail
 
 # 精确获取页数（较慢）
@@ -282,63 +377,6 @@ python search_comics.py "砂漠" --precise-pages
 
 # 指定输出文件
 python search_comics.py "砂漠" --output my_search.json
-
-# 交互式输入关键词
-python search_comics.py
-```
-
-**参数说明**:
-| 参数 | 说明 |
-|------|------|
-| `query` | 搜索关键词（必填，或交互输入） |
-| `--max-pages` | 最大搜索页数（默认获取所有结果） |
-| `--output` | 输出文件路径（默认 search_result.json） |
-| `--temp` | 临时ID文件路径（默认 temp/search_ids.txt） |
-| `--skip-detail` | 只保存ID，不获取详细信息 |
-| `--precise-pages` | 精确获取页数（较慢，需获取每个章节详情） |
-
-**输出文件**:
-- `temp/search_ids.txt` - 搜索结果的漫画ID列表（每行一个ID）
-- `search_result.json` - 详细信息，格式与数据库一致
-
-**示例输出**:
-```
-正在登录...
-登录成功！
-
-正在搜索: 砂漠
-正在获取第 1 页...
-第 1 页: 获取到 77 个结果
-已到达最后一页 (1 页)
-
-共搜索到 77 个漫画
-搜索结果ID已保存到: temp/search_ids.txt
-
-正在获取漫画详细信息...
-[1/77] 获取漫画 1190059 详情...
-[2/77] 获取漫画 1250038 详情...
-...
-
-搜索结果已保存到: search_result.json
-```
-
-**search_result.json 格式**:
-```json
-{
-  "search_query": "砂漠",
-  "total_results": 77,
-  "search_time": "2026-02-28 03:07:08",
-  "albums": [
-    {
-      "album_id": "1190059",
-      "title": "石庭酱与我-我与小石庭 全集无修正版...",
-      "author": "砂漠",
-      "pages": 0,
-      "tags": ["纯爱", "单行本", ...],
-      ...
-    }
-  ]
-}
 ```
 
 ---
@@ -347,35 +385,34 @@ python search_comics.py
 
 ### 日常同步收藏夹
 ```bash
-# 一键同步收藏夹并下载新漫画
 python sync_favorites_and_download.py
 ```
 
 ### 首次使用/完整下载
 ```bash
-# 1. 获取收藏的漫画ID
 python get_favorite_comics.py
-
-# 2. 批量下载所有漫画
 python batch_download_comics.py
-
-# 3. 更新数据库页数（可选）
 python update_database_pages.py --mode precise
 ```
 
 ### 搜索并下载特定漫画
 ```bash
-# 1. 搜索漫画
-python search_comics.py "作者名或关键词"
-
-# 2. 查看搜索结果
-# 编辑 temp/search_ids.txt，保留想要下载的ID
-
-# 3. 将ID添加到下载列表
-# 将 temp/search_ids.txt 中的ID追加到 favorite_comics.txt
-
-# 4. 批量下载
+python search_comics.py "作者名"
+# 编辑 temp/search_ids.txt
+# 将ID追加到 favorite_comics.txt
 python batch_download_comics.py
+```
+
+### 作为库使用
+```python
+from jmcomic_api import search_comics_full, download_album, add_to_database
+
+# 搜索并下载
+result = search_comics_full("砂漠", max_pages=1)
+for album in result['results']:
+    detail, success = download_album(album['album_id'])
+    if success:
+        add_to_database(detail)
 ```
 
 ---
@@ -383,16 +420,80 @@ python batch_download_comics.py
 ## 常见问题
 
 ### Q: 登录失败怎么办？
-A: 检查 `config.json` 中的用户名和密码是否正确。部分脚本支持通过命令行参数指定账号密码。
+A: 检查 `config.json` 中的用户名和密码是否正确。也可以通过代码传入：
+```python
+client = get_client(username="user", password="pass")
+```
 
 ### Q: 下载中断了怎么办？
-A: 重新运行 `batch_download_comics.py`，脚本会自动跳过已下载的漫画，从中断处继续。
+A: 重新运行 `batch_download_comics.py`，脚本会自动跳过已下载的漫画。
 
 ### Q: 如何查看下载进度？
-A: 查看 `download_progress.json` 文件，或运行 `update_database_pages.py` 查看统计信息。
+```python
+from utils import print_download_stats
+print_download_stats()
+```
 
 ### Q: 搜索结果的页数为什么是0？
-A: 网页解析问题导致。使用 `--precise-pages` 参数可以获取精确页数，但速度较慢。
+A: 网页解析问题。使用 `--precise-pages` 参数或调用 `search_comics_full` 获取精确页数。
 
 ### Q: 连续命中阈值是什么意思？
-A: 在 `sync_favorites_and_download.py` 中，如果连续N个漫画ID都在数据库中找到，则认为后面的漫画也都在数据库中，提前终止检索以节省时间。
+A: 在 `sync_favorites` 中，如果连续N个漫画ID都在数据库中找到，则提前终止检索以节省时间。
+
+---
+
+## 输出格式
+
+### 数据库格式 (comics_database.json)
+
+```json
+{
+  "collection_name": "我的最爱",
+  "user": "username",
+  "total_favorites": 600,
+  "last_updated": "2026-02-28",
+  "albums": [
+    {
+      "rank": 1,
+      "album_id": 1024707,
+      "title": "女の子のおもちゃ 无修正版",
+      "author": "砂漠",
+      "pages": 199,
+      "cover_url": "https://cdn-msp3.18comic.vip/media/albums/1024707.jpg",
+      "album_url": "https://18comic.vip/album/1024707",
+      "tags": ["纯爱", "短髮", "贫乳"],
+      "upload_date": "0",
+      "update_date": "0"
+    }
+  ]
+}
+```
+
+### 进度文件格式 (download_progress.json)
+
+```json
+{
+  "1024707": {
+    "status": "completed",
+    "start_time": "2026-02-28 10:00:00",
+    "end_time": "2026-02-28 10:05:00",
+    "downloaded_images": 199,
+    "total_images": 199
+  },
+  "427136": {
+    "status": "downloading",
+    "start_time": "2026-02-28 10:06:00",
+    "downloaded_images": 50,
+    "total_images": 172
+  }
+}
+```
+
+---
+
+## 注意事项
+
+- 请合理使用，避免频繁请求
+- 下载的图片保存在 `pictures/[漫画ID]/` 目录
+- 数据库文件会自动更新
+- 支持断点续传，中断后可继续下载

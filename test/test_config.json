@@ -1,0 +1,10 @@
+{
+    "username": "mt1511318385",
+    "password": "mtly2001",
+    "download_dir": "D:\\code\\JMComic-Crawler-Python\\test\\pictures",
+    "output_json": "D:\\code\\JMComic-Crawler-Python\\test\\test_database.json",
+    "progress_file": "D:\\code\\JMComic-Crawler-Python\\test\\test_progress.json",
+    "favorite_list_file": "D:\\code\\JMComic-Crawler-Python\\test\\test_favorites.txt",
+    "consecutive_hit_threshold": 5,
+    "collection_name": "测试收藏"
+}
