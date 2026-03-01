@@ -3,7 +3,6 @@
 """
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'lib', 'src'))
 
 from jmcomic_api import (
     load_config, get_client, get_album_detail,

@@ -3,10 +3,7 @@ JMComic API 模块
 提供漫画搜索、下载、收藏管理等API接口
 """
 
-import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'lib', 'src'))
-
 import jmcomic
 import json
 from typing import Dict, List, Optional, Tuple, Generator
@@ -287,32 +284,109 @@ def get_local_progress(album_id: int or str, download_dir: str = None) -> int:
 
 
 def search_comics(query: str, page: int = 1, max_pages: int = None,
-                  client: jmcomic.JmHtmlClient = None) -> Dict:
+                  client: jmcomic.JmHtmlClient = None,
+                  start_index: int = None, end_index: int = None) -> Dict:
     """
     搜索漫画
     
     Args:
         query: 搜索关键词
-        page: 起始页码
+        page: 起始页码 (从1开始)
         max_pages: 最大页数（None表示获取所有结果）
         client: JMComic客户端
+        start_index: 起始个数索引 (从0开始，如70表示从第70个开始)
+        end_index: 结束个数索引 (如80表示到第80个结束，不包含)
+        注意: start_index和end_index优先于page和max_pages
     
     Returns:
-        搜索结果字典
+        搜索结果字典:
+        {
+            "query": str,           # 搜索关键词
+            "total": int,           # 总结果数
+            "page_count": int,      # 总页数
+            "page_size": int,       # 每页数量
+            "start_index": int,    # 实际起始索引
+            "end_index": int,      # 实际结束索引(不包含)
+            "results": list        # 搜索结果列表
+        }
     """
     if client is None:
         client = get_client()
     
+    first_page = client.search_site(
+        search_query=query,
+        page=page,
+        order_by=jmcomic.JmMagicConstants.ORDER_BY_LATEST
+    )
+    
+    total_results = first_page.total
+    page_size = first_page.page_size if hasattr(first_page, 'page_size') else 30
+    total_pages = first_page.page_count
+    
+    if start_index is not None or end_index is not None:
+        start_idx = start_index if start_index is not None else 0
+        end_idx = end_index if end_index is not None else total_results
+        
+        start_idx = max(0, min(start_idx, total_results))
+        end_idx = max(start_idx, min(end_idx, total_results))
+        
+        start_page = start_idx // page_size + 1
+        end_page = (end_idx + page_size - 1) // page_size
+        
+        all_results = []
+        current_page = start_page
+        
+        while current_page <= end_page:
+            if current_page == start_page:
+                search_page = first_page if current_page == page else client.search_site(
+                    search_query=query,
+                    page=current_page,
+                    order_by=jmcomic.JmMagicConstants.ORDER_BY_LATEST
+                )
+            else:
+                search_page = client.search_site(
+                    search_query=query,
+                    page=current_page,
+                    order_by=jmcomic.JmMagicConstants.ORDER_BY_LATEST
+                )
+            
+            if not search_page.content:
+                break
+            
+            for album_id, album_info in search_page.content:
+                all_results.append({
+                    "album_id": int(album_id),
+                    "title": album_info.get('name', ''),
+                    "tags": album_info.get('tags', [])
+                })
+            
+            current_page += 1
+        
+        results = all_results[start_idx % page_size:]
+        results = results[:end_idx - start_idx]
+        
+        return {
+            "query": query,
+            "total": total_results,
+            "page_count": total_pages,
+            "page_size": page_size,
+            "start_index": start_idx,
+            "end_index": end_idx,
+            "results": results
+        }
+    
     all_results = []
     current_page = page
-    total_results = 0
     
     while True:
-        search_page = client.search_site(
-            search_query=query,
-            page=current_page,
-            order_by=jmcomic.JmMagicConstants.ORDER_BY_LATEST
-        )
+        if current_page == page:
+            search_page = first_page
+        else:
+            search_page = client.search_site(
+                search_query=query,
+                page=current_page,
+                order_by=jmcomic.JmMagicConstants.ORDER_BY_LATEST
+            )
         
         if not search_page.content:
             break
@@ -323,8 +397,6 @@ def search_comics(query: str, page: int = 1, max_pages: int = None,
                 "title": album_info.get('name', ''),
                 "tags": album_info.get('tags', [])
             })
-        
-        total_results = search_page.total
         
         if max_pages and current_page >= max_pages:
             break
@@ -337,25 +409,31 @@ def search_comics(query: str, page: int = 1, max_pages: int = None,
     return {
         "query": query,
         "total": total_results,
-        "page_count": (current_page - page + 1),
+        "page_count": total_pages,
+        "page_size": page_size,
+        "start_index": 0,
+        "end_index": len(all_results),
         "results": all_results
     }
 
 def search_comics_full(query: str, page: int = 1, max_pages: int = None,
-                       client: jmcomic.JmHtmlClient = None) -> Dict:
+                       client: jmcomic.JmHtmlClient = None,
+                       start_index: int = None, end_index: int = None) -> Dict:
     """
     搜索漫画并获取详细信息
     
     Args:
         query: 搜索关键词
-        page: 起始页码
+        page: 起始页码 (从1开始)
         max_pages: 最大页数
         client: JMComic客户端
+        start_index: 起始个数索引 (从0开始)
+        end_index: 结束个数索引 (不包含)
     
     Returns:
         搜索结果字典（包含详细信息）
     """
-    result = search_comics(query, page, max_pages, client)
+    result = search_comics(query, page, max_pages, client, start_index, end_index)
     
     if client is None:
         client = get_client()

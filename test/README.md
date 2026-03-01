@@ -24,7 +24,9 @@ python test/test_api.py
 | `get_total_pages()` | `test_get_total_pages()` | 第134-145行 | 获取网络端图片总数 |
 | `get_local_progress()` | `test_get_local_progress()` | 第147-152行 | 获取本地已下载图片数量 |
 | `search_comics()` | `test_search_comics()` | 第154-174行 | 搜索漫画，验证返回格式 |
-| `load_database()` | `test_database_operations()` | 第176-196行 | 加载数据库 |
+| `search_comics()` | `test_search_comics_range()` | 第177-200行 | 范围搜索，验证start_index/end_index参数 |
+| `get_favorite_comics()` | `test_get_favorite_comics()` | 第201-220行 | 获取用户收藏夹 |
+| `load_database()` | `test_database_operations()` | 第222-242行 | 加载数据库 |
 | `add_to_database()` | `test_database_operations()` | 第176-196行 | 添加漫画到数据库 |
 | `load_progress()` | `test_progress_operations()` | 第198-216行 | 加载下载进度 |
 | `save_progress()` | `test_progress_operations()` | 第198-216行 | 保存下载进度 |
@@ -141,6 +143,6 @@ progress_operations: ✅ 通过
 utils_functions: ✅ 通过
 batch_download: ✅ 通过
 
-总计: 12 通过, 0 失败
+总计: 14 通过, 0 失败
 ============================================================
 ```

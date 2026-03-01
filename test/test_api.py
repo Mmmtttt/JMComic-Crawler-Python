@@ -8,7 +8,6 @@ import os
 import json
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'lib', 'src'))
 
 from jmcomic_api import (
     load_config, get_client, get_option,
@@ -175,6 +174,49 @@ def test_search_comics(client):
     print("✅ 通过")
     return result
 
+def test_search_comics_range(client):
+    print_header("search_comics() 范围搜索")
+    
+    result = search_comics("萝莉", client=client, start_index=5, end_index=10)
+    
+    print(f"total: {result.get('total')}")
+    print(f"start_index: {result.get('start_index')}")
+    print(f"end_index: {result.get('end_index')}")
+    print(f"results count: {len(result.get('results', []))}")
+    
+    expected_keys = ["query", "total", "results", "start_index", "end_index"]
+    missing = [k for k in expected_keys if k not in result]
+    
+    if missing:
+        print(f"❌ 缺少字段: {missing}")
+        return None
+    
+    assert result["end_index"] - result["start_index"] == len(result["results"])
+    
+    print("✅ 通过")
+    return result
+
+def test_get_favorite_comics(client):
+    print_header("get_favorite_comics()")
+    result = get_favorite_comics(client=client)
+    
+    print(f"total: {result.get('total')}")
+    print(f"comics count: {len(result.get('comics', []))}")
+    
+    expected_keys = ["total", "comics"]
+    missing = [k for k in expected_keys if k not in result]
+    
+    if missing:
+        print(f"❌ 缺少字段: {missing}")
+        return None
+    
+    if result["comics"]:
+        first = result["comics"][0]
+        print(f"第一个收藏: album_id={first.get('album_id')}, title={first.get('title', '')[:30]}...")
+    
+    print("✅ 通过")
+    return result
+
 def test_database_operations(detail):
     print_header("数据库操作")
     
@@ -322,6 +364,20 @@ def run_all_tests():
         results.append(("search_comics", True, ""))
     except Exception as e:
         results.append(("search_comics", False, str(e)))
+        print(f"❌ 失败: {e}")
+    
+    try:
+        test_search_comics_range(client)
+        results.append(("search_comics_range", True, ""))
+    except Exception as e:
+        results.append(("search_comics_range", False, str(e)))
+        print(f"❌ 失败: {e}")
+    
+    try:
+        test_get_favorite_comics(client)
+        results.append(("get_favorite_comics", True, ""))
+    except Exception as e:
+        results.append(("get_favorite_comics", False, str(e)))
         print(f"❌ 失败: {e}")
     
     if detail:

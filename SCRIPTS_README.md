@@ -185,6 +185,12 @@ print(f"共找到 {result['total']} 个结果")
 for item in result['results']:
     print(f"{item['album_id']}: {item['title']}")
 
+# 分页搜索（第3~5页）
+result = search_comics("砂漠", page=3, max_pages=3)
+
+# 范围搜索（指定个数，从第5个到第10个，索引从0开始）
+result = search_comics("砂漠", start_index=5, end_index=10)
+
 # 完整搜索（获取详细信息）
 result = search_comics_full("砂漠", max_pages=1)
 for album in result['results']:
@@ -196,7 +202,10 @@ for album in result['results']:
 {
   "query": "砂漠",
   "total": 77,
-  "page_count": 1,
+  "page_count": 3,
+  "page_size": 30,
+  "start_index": 5,
+  "end_index": 10,
   "results": [
     {
       "album_id": 1190059,
@@ -208,6 +217,18 @@ for album in result['results']:
   ]
 }
 ```
+
+**参数说明**：
+| 参数 | 说明 |
+|------|------|
+| `query` | 搜索关键词 |
+| `page` | 起始页码（从1开始） |
+| `max_pages` | 最大页数（None表示获取所有） |
+| `start_index` | 起始个数索引（从0开始，如5表示从第5个开始） |
+| `end_index` | 结束个数索引（不包含，如10表示到第10个结束） |
+| `total` | 搜索结果总数 |
+| `page_count` | 总页数 |
+| `page_size` | 每页数量 |
 
 ### 收藏管理
 
