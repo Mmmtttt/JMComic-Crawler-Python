@@ -1,6 +1,6 @@
 {
-    "username": "mt1511318385",
-    "password": "mtly2001",
+    "username": "",
+    "password": "",
     "download_dir": "test/pictures",
     "output_json": "test/test_database.json",
     "progress_file": "test/test_progress.json",

@@ -165,5 +165,6 @@ cython_debug/
 .agent
 
 pictures/*
-
+test/test_progress.json
+test/test_database.json
 test/pictures/*
