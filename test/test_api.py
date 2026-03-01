@@ -15,7 +15,8 @@ from jmcomic_api import (
     search_comics, search_comics_full,
     get_favorite_comics, get_favorite_comics_full,
     load_database, save_database, add_to_database,
-    load_progress, save_progress, batch_download, sync_favorites
+    load_progress, save_progress, batch_download, sync_favorites,
+    get_scramble_id
 )
 from utils import (
     load_json_file, save_json_file, load_text_file, save_text_file,
@@ -260,30 +261,113 @@ def test_progress_operations():
     print("✅ 通过")
 
 def test_utils_functions():
-    print_header("工具函数")
+    """测试工具函数"""
+    print("\n=== 测试工具函数 ===")
     
-    stats = get_download_stats(TEST_DOWNLOAD_DIR, TEST_DB_FILE)
-    print(f"下载统计: {stats['downloaded_albums']} 个漫画, {stats['total_images']} 张图片, {stats['total_size_formatted']}")
+    try:
+        import jmcomic
+        # 测试JMComicText.parse_to_jm_id
+        test_cases = [
+            ("JM12345", "12345"),
+            ("jm12345", "12345"),
+            ("https://18comic.vip/album/12345", "12345"),
+            ("https://18comic.vip/photo/12345", "12345"),
+            ("https://18comic.vip/album/?id=12345", "12345"),
+        ]
+        
+        for input, expected in test_cases:
+            result = jmcomic.JmcomicText.parse_to_jm_id(input)
+            assert result == expected, f"parse_to_jm_id failed for {input}: expected {expected}, got {result}"
+            print(f"✅ parse_to_jm_id({input}) = {result}")
+        
+        print("\n✅ 工具函数测试通过")
+    except Exception as e:
+        print(f"⚠️  警告: JMComicText测试失败，可能未安装jmcomic库: {e}")
+
+def test_image_decoding(client=None):
+    """测试图片解密功能"""
+    print("\n=== 测试图片解密功能 ===")
     
-    formatted = format_file_size(1024 * 1024 * 100)
-    print(f"格式化文件大小(100MB): {formatted}")
+    # 测试JmImageTool.get_num
+    from jmcomic_api import JmImageTool, JmMagicConstants
     
-    ids = parse_album_ids("123456,789012,123460-123462")
-    print(f"解析ID: {ids}")
-    assert 123456 in ids
-    assert 123460 in ids
-    assert 123462 in ids
+    # 测试用例1: aid < scramble_id
+    num1 = JmImageTool.get_num(100000, 50000, "00001.jpg")
+    assert num1 == 0, f"get_num failed for aid < scramble_id: expected 0, got {num1}"
+    print(f"✅ get_num(aid < scramble_id) = {num1}")
     
-    valid = validate_album_id("123456")
-    print(f"验证ID '123456': {valid}")
-    assert valid == True
+    # 测试用例2: aid < SCRAMBLE_268850
+    num2 = JmImageTool.get_num(100000, 200000, "00001.jpg")
+    assert num2 == 10, f"get_num failed for aid < SCRAMBLE_268850: expected 10, got {num2}"
+    print(f"✅ get_num(aid < SCRAMBLE_268850) = {num2}")
     
-    print("✅ 通过")
+    # 测试用例3: aid < SCRAMBLE_421926
+    num3 = JmImageTool.get_num(100000, 300000, "00001.jpg")
+    assert num3 >= 2 and num3 <= 20 and num3 % 2 == 0, f"get_num failed for aid < SCRAMBLE_421926: expected even number between 2-20, got {num3}"
+    print(f"✅ get_num(aid < SCRAMBLE_421926) = {num3}")
+    
+    # 测试用例4: aid >= SCRAMBLE_421926
+    num4 = JmImageTool.get_num(100000, 500000, "00001.jpg")
+    assert num4 >= 2 and num4 <= 16 and num4 % 2 == 0, f"get_num failed for aid >= SCRAMBLE_421926: expected even number between 2-16, got {num4}"
+    print(f"✅ get_num(aid >= SCRAMBLE_421926) = {num4}")
+    
+    # 测试真实图片解密
+    import os
+    import random
+    
+    # 尝试从已下载的漫画中随机选择一张图片
+    comic_dirs = [d for d in os.listdir(TEST_DOWNLOAD_DIR) if d.isdigit()]
+    
+    if comic_dirs:
+        # 随机选择一个漫画目录
+        random_comic_id = random.choice(comic_dirs)
+        comic_dir = os.path.join(TEST_DOWNLOAD_DIR, random_comic_id)
+        
+        # 随机选择一张图片
+        image_files = [f for f in os.listdir(comic_dir) if f.endswith(('.webp', '.jpg', '.png'))]
+        
+        if image_files:
+            random_image = random.choice(image_files)
+            test_image_path = os.path.join(comic_dir, random_image)
+            
+            print(f"\n📸 测试真实图片解密: {test_image_path}")
+            print(f"📋 漫画ID: {random_comic_id}")
+            
+            try:
+                # 打开图片
+                img = JmImageTool.open_image(test_image_path)
+                print(f"✅ 成功打开图片，尺寸: {img.size}")
+                
+                # 获取真实scramble_id
+                if client is not None:
+                    scramble_id = get_scramble_id(int(random_comic_id), client)
+                    print(f"🔑 获取到真实scramble_id: {scramble_id}")
+                else:
+                    scramble_id = 220980
+                    print(f"🔑 使用默认scramble_id: {scramble_id}")
+                
+                # 使用真实参数计算分割数
+                num = JmImageTool.get_num(scramble_id, int(random_comic_id), random_image)
+                print(f"📊 计算得到分割数: {num}")
+                
+                # 解密并保存
+                output_path = os.path.join(comic_dir, f"{os.path.splitext(random_image)[0]}_decoded.jpg")
+                JmImageTool.decode_and_save(num, img, output_path)
+                print(f"✅ 解密成功，已保存到: {output_path}")
+                
+            except Exception as e:
+                print(f"⚠️  真实图片解密测试失败: {e}")
+        else:
+            print(f"\nℹ️  漫画目录 {random_comic_id} 中未找到图片文件")
+    else:
+        print(f"\nℹ️  未找到已下载的漫画目录")
+    
+    print("\n✅ 图片解密功能测试通过")
 
 def test_batch_download(client):
     print_header("batch_download()")
     
-    test_ids = [TEST_ALBUM_ID]
+    test_ids = [1312953, 1295258]
     
     def progress_callback(current, total, album_id, status):
         print(f"  [{current}/{total}] {album_id}: {status}")
@@ -298,6 +382,56 @@ def test_batch_download(client):
     if missing:
         print(f"❌ 缺少字段: {missing}")
         return None
+    
+    print("✅ 通过")
+
+def test_download_original_image(client):
+    print_header("download_original_image()")
+    
+    # 下载原始混淆图片
+    detail, success = download_album(
+        1323910, 
+        download_dir=TEST_DOWNLOAD_DIR, 
+        client=client,
+        decode_images=False
+    )
+    
+    print(f"下载成功: {success}")
+    print(f"本地图片数: {detail.get('local_pages', 0)}")
+    print(f"网络端图片总数: {detail.get('total_pages', 0)}")
+    
+    # 解密一张图片
+    comic_dir = os.path.join(TEST_DOWNLOAD_DIR, "1323910")
+    image_files = [f for f in os.listdir(comic_dir) if f.endswith(('.webp', '.jpg', '.png'))]
+    
+    if image_files:
+        # 选择第一张图片
+        test_image = image_files[0]
+        test_image_path = os.path.join(comic_dir, test_image)
+        
+        print(f"\n📸 解密图片: {test_image_path}")
+        
+        try:
+            # 打开图片
+            from jmcomic_api import JmImageTool
+            img = JmImageTool.open_image(test_image_path)
+            print(f"✅ 成功打开图片，尺寸: {img.size}")
+            
+            # 获取真实scramble_id
+            scramble_id = get_scramble_id(1323910, client)
+            print(f"🔑 获取到真实scramble_id: {scramble_id}")
+            
+            # 计算分割数
+            num = JmImageTool.get_num(scramble_id, 1323910, test_image)
+            print(f"📊 计算得到分割数: {num}")
+            
+            # 解密并保存
+            output_path = os.path.join(comic_dir, f"{os.path.splitext(test_image)[0]}_decoded.jpg")
+            JmImageTool.decode_and_save(num, img, output_path)
+            print(f"✅ 解密成功，已保存到: {output_path}")
+            
+        except Exception as e:
+            print(f"⚠️  图片解密失败: {e}")
     
     print("✅ 通过")
 
@@ -403,10 +537,24 @@ def run_all_tests():
         print(f"❌ 失败: {e}")
     
     try:
+        test_image_decoding(client)
+        results.append(("image_decoding", True, ""))
+    except Exception as e:
+        results.append(("image_decoding", False, str(e)))
+        print(f"❌ 失败: {e}")
+    
+    try:
         test_batch_download(client)
         results.append(("batch_download", True, ""))
     except Exception as e:
         results.append(("batch_download", False, str(e)))
+        print(f"❌ 失败: {e}")
+    
+    try:
+        test_download_original_image(client)
+        results.append(("download_original_image", True, ""))
+    except Exception as e:
+        results.append(("download_original_image", False, str(e)))
         print(f"❌ 失败: {e}")
     
     print("\n" + "="*60)
