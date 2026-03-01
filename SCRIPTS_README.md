@@ -18,22 +18,26 @@ JMComic-Crawler-Python/
 ├── config.json                    # 统一配置文件
 ├── jmcomic_api.py                 # 核心 API 模块
 ├── utils.py                       # 工具函数模块
+├── requirements.txt               # 依赖列表
 ├── comics_database.json           # 漫画数据库
 ├── download_progress.json         # 下载进度记录
 ├── favorite_comics.txt            # 收藏漫画ID列表
 ├── search_result.json             # 搜索结果
-├── temp/                          # 临时文件夹
-│   └── search_ids.txt             # 搜索结果ID
-├── pictures/                      # 下载的漫画图片
 ├── lib/                           # 核心库文件
 │   └── src/jmcomic/               # jmcomic库源码
 │
-├── get_comic_detail_and_download.py   # 获取单个漫画详情并下载
-├── get_favorite_comics.py             # 获取用户收藏的漫画ID
-├── batch_download_comics.py           # 批量下载漫画
-├── update_database_pages.py           # 更新数据库页数
-├── sync_favorites_and_download.py     # 同步收藏夹并下载新漫画
-└── search_comics.py                   # 搜索漫画并获取详细信息
+├── scripts/                       # 示例脚本目录
+│   ├── get_comic_detail_and_download.py   # 获取单个漫画详情并下载
+│   ├── get_favorite_comics.py             # 获取用户收藏的漫画ID
+│   ├── batch_download_comics.py           # 批量下载漫画
+│   ├── update_database_pages.py           # 更新数据库页数
+│   ├── sync_favorites_and_download.py     # 同步收藏夹并下载新漫画
+│   └── search_comics.py                   # 搜索漫画并获取详细信息
+│
+├── test/                          # 测试目录
+│   ├── test_api.py                # API 测试脚本
+│   ├── test_config.json           # 测试配置
+│   └── pictures/                  # 测试下载目录
 ```
 
 ## 安装
@@ -413,6 +417,38 @@ for album in result['results']:
     detail, success = download_album(album['album_id'])
     if success:
         add_to_database(detail)
+```
+
+## 运行脚本
+
+所有脚本位于 `scripts/` 目录下：
+
+```bash
+# 获取漫画详情并下载
+python scripts/get_comic_detail_and_download.py
+
+# 搜索漫画
+python scripts/search_comics.py --query "砂漠" --max-pages 1
+
+# 获取收藏漫画
+python scripts/get_favorite_comics.py
+
+# 批量下载
+python scripts/batch_download_comics.py
+
+# 同步收藏并下载
+python scripts/sync_favorites_and_download.py
+
+# 更新数据库页数
+python scripts/update_database_pages.py
+```
+
+## 测试
+
+运行测试脚本：
+
+```bash
+python test/test_api.py
 ```
 
 ---
