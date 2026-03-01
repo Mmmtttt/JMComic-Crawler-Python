@@ -408,21 +408,19 @@ def download_album(album_id: int or str, download_dir: str = None,
     if show_progress:
         print(f"网络端图片总数: {total_pages}")
     
-    option = get_option()
-    if download_dir != config.get("download_dir", "pictures"):
-        option = jmcomic.JmOption.construct({
-            'download': {
-                'dir': download_dir,
-                'image': {
-                    'decode': decode_images,
-                    'suffix': '.jpg'
-                }
-            },
-            'dir_rule': {
-                'base_dir': download_dir,
-                'rule': 'Bd_Aid'
+    option = jmcomic.JmOption.construct({
+        'download': {
+            'dir': download_dir,
+            'image': {
+                'decode': decode_images,
+                'suffix': '.jpg'
             }
-        })
+        },
+        'dir_rule': {
+            'base_dir': download_dir,
+            'rule': 'Bd_Aid'
+        }
+    })
     
     if show_progress:
         print(f"开始下载漫画 {album_id}...")
@@ -815,7 +813,8 @@ def save_progress(progress: Dict) -> None:
 
 def batch_download(album_ids: List[int or str], skip_existing: bool = True,
                    database: Dict = None, client: jmcomic.JmHtmlClient = None,
-                   progress_callback: callable = None) -> Dict:
+                   progress_callback: callable = None, decode_images: bool = True,
+                   download_dir: str = None) -> Dict:
     """
     批量下载漫画
     
@@ -825,6 +824,8 @@ def batch_download(album_ids: List[int or str], skip_existing: bool = True,
         database: 数据库对象
         client: JMComic客户端
         progress_callback: 进度回调函数
+        decode_images: 是否解密图片（可选，默认True）
+        download_dir: 下载目录（可选）
     
     Returns:
         下载结果统计
@@ -868,7 +869,7 @@ def batch_download(album_ids: List[int or str], skip_existing: bool = True,
             continue
         
         try:
-            detail, success = download_album(album_id, client=client)
+            detail, success = download_album(album_id, download_dir=download_dir, client=client, decode_images=decode_images)
             
             if success:
                 stats["success"] += 1
