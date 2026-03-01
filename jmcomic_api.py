@@ -95,6 +95,8 @@ def get_scramble_id(album_id: int or str, client: jmcomic.JmHtmlClient = None) -
     """
     获取漫画的真实scramble_id
     
+    重要：需要使用photo_id（章节ID）去获取scramble_id，而不是album_id
+    
     Args:
         album_id: 漫画ID
         client: JMComic客户端
@@ -106,11 +108,17 @@ def get_scramble_id(album_id: int or str, client: jmcomic.JmHtmlClient = None) -
         client = get_client()
     
     album = client.get_album_detail(album_id)
-    scramble_id = album.scramble_id
     
-    # 如果获取到的scramble_id无效，使用默认值
-    if scramble_id is None or scramble_id == 0 or scramble_id == '':
-        scramble_id = 220980
+    scramble_id = None
+    
+    for photo in album:
+        photo_id = photo.photo_id
+        scramble_id = client.get_scramble_id(photo_id)
+        if scramble_id and scramble_id != '0':
+            break
+    
+    if not scramble_id or scramble_id == '0':
+        scramble_id = '220980'
     
     return str(scramble_id)
 
@@ -273,12 +281,12 @@ def get_album_detail(album_id: int or str, client: jmcomic.JmHtmlClient = None) 
 class ProgressDownloader(jmcomic.JmDownloader):
     """
     带进度回调的下载器
+    注释：图片解密由jmcomic库内部处理，通过option.download.image.decode控制
     """
     
     def __init__(self, option=None, progress_callback=None, decode_images=True):
         super().__init__(option)
         self.progress_callback = progress_callback
-        self.decode_images = decode_images
         self.current_image = 0
         self.total_images = 0
     
@@ -300,48 +308,6 @@ class ProgressDownloader(jmcomic.JmDownloader):
                 image_filename=f"{image.img_file_name}{image.img_file_suffix}",
                 status="downloading"
             )
-    
-    def after_image(self, image, img_save_path):
-        """
-        图片下载完成后解密
-        """
-        super().after_image(image, img_save_path)
-        
-        if not self.decode_images:
-            return
-        
-        # 获取真实scramble_id
-        scramble_id = None
-        if hasattr(image, 'scramble_id') and image.scramble_id is not None:
-            scramble_id = str(image.scramble_id)
-        elif hasattr(image.from_photo, 'scramble_id') and image.from_photo.scramble_id is not None:
-            scramble_id = str(image.from_photo.scramble_id)
-        
-        # 如果无法从image对象获取，尝试从album获取
-        if not scramble_id or scramble_id == '0' or scramble_id == '':
-            try:
-                scramble_id = get_scramble_id(image.aid)
-            except:
-                pass
-        
-        # 如果无法获取scramble_id，使用默认值
-        if not scramble_id or scramble_id == '0' or scramble_id == '':
-            scramble_id = '220980'
-        
-        # 计算分割数
-        num = JmImageTool.get_num(
-            scramble_id,
-            aid=jmcomic.JmcomicText.parse_to_jm_id(image.aid),
-            filename=image.img_file_name
-        )
-        
-        # 解密图片
-        if num > 0:
-            try:
-                img = JmImageTool.open_image(img_save_path)
-                JmImageTool.decode_and_save(num, img, img_save_path)
-            except Exception as e:
-                print(f"图片解密失败: {img_save_path}, 错误: {e}")
 
 def get_total_pages(album_id: int or str, client: jmcomic.JmHtmlClient = None) -> int:
     """
