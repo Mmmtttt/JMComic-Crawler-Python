@@ -8,6 +8,9 @@ import jmcomic
 import json
 from typing import Dict, List, Optional, Tuple, Generator
 from datetime import datetime
+from PIL import Image
+from io import BytesIO
+import hashlib
 
 _config = None
 _client = None
@@ -77,6 +80,7 @@ def get_option() -> jmcomic.JmOption:
         'download': {
             'dir': config.get("download_dir", "pictures"),
             'image': {
+                'decode': True,
                 'suffix': '.jpg'
             }
         },
@@ -86,6 +90,139 @@ def get_option() -> jmcomic.JmOption:
         }
     })
     return _option
+
+def get_scramble_id(album_id: int or str, client: jmcomic.JmHtmlClient = None) -> str:
+    """
+    获取漫画的真实scramble_id
+    
+    Args:
+        album_id: 漫画ID
+        client: JMComic客户端
+    
+    Returns:
+        scramble_id
+    """
+    if client is None:
+        client = get_client()
+    
+    album = client.get_album_detail(album_id)
+    scramble_id = album.scramble_id
+    
+    # 如果获取到的scramble_id无效，使用默认值
+    if scramble_id is None or scramble_id == 0 or scramble_id == '':
+        scramble_id = 220980
+    
+    return str(scramble_id)
+
+class JmMagicConstants:
+    """JMComic魔法常量"""
+    SCRAMBLE_268850 = 268850
+    SCRAMBLE_421926 = 421926
+
+class JmImageTool:
+    """JMComic图片解密工具"""
+    
+    @classmethod
+    def decode_and_save(cls,
+                        num: int,
+                        img_src: Image,
+                        decoded_save_path: str
+                        ) -> None:
+        """
+        解密图片并保存
+        :param num: 分割数
+        :param img_src: 原始图片
+        :param decoded_save_path: 解密图片的保存路径
+        """
+
+        # 无需解密，直接保存
+        if num == 0:
+            cls.save_image(img_src, decoded_save_path)
+            return
+
+        import math
+        w, h = img_src.size
+
+        # 创建新的解密图片，使用与源图片相同的模式以支持透明通道
+        img_decode = Image.new(img_src.mode, (w, h))
+        over = h % num
+        for i in range(num):
+            move = math.floor(h / num)
+            y_src = h - (move * (i + 1)) - over
+            y_dst = move * i
+
+            if i == 0:
+                move += over
+            else:
+                y_dst += over
+
+            img_decode.paste(
+                img_src.crop((
+                    0, y_src,
+                    w, y_src + move
+                )),
+                (
+                    0, y_dst,
+                    w, y_dst + move
+                )
+            )
+
+        # 保存到新的解密文件
+        cls.save_image(img_decode, decoded_save_path)
+
+    @classmethod
+    def save_image(cls, image: Image, filepath: str):
+        """
+        保存图片
+
+        :param image: PIL.Image对象
+        :param filepath: 保存文件路径
+        """
+        image.save(filepath)
+
+    @classmethod
+    def open_image(cls, fp):
+        """
+        打开图片
+
+        :param fp: 文件路径或字节数据
+        """
+        fp = fp if isinstance(fp, str) else BytesIO(fp)
+        return Image.open(fp)
+
+    @classmethod
+    def get_num(cls, scramble_id, aid, filename: str) -> int:
+        """
+        获得图片分割数
+        """
+
+        scramble_id = int(scramble_id)
+        aid = int(aid)
+
+        if aid < scramble_id:
+            return 0
+        elif aid < JmMagicConstants.SCRAMBLE_268850:
+            return 10
+        else:
+            x = 10 if aid < JmMagicConstants.SCRAMBLE_421926 else 8
+            s = f"{aid}{filename}"  # 拼接
+            s = s.encode()
+            s = hashlib.md5(s).hexdigest()
+            num = ord(s[-1])
+            num %= x
+            num = num * 2 + 2
+            return num
+
+    @classmethod
+    def get_num_by_url(cls, scramble_id, url) -> int:
+        """
+        获得图片分割数
+        """
+        return cls.get_num(
+            scramble_id,
+            aid=jmcomic.JmcomicText.parse_to_jm_id(url),
+            filename=os.path.basename(url).split('.')[0],
+        )
 
 
 def get_album_detail(album_id: int or str, client: jmcomic.JmHtmlClient = None) -> Dict:
@@ -135,11 +272,13 @@ def get_album_detail(album_id: int or str, client: jmcomic.JmHtmlClient = None) 
 
 class ProgressDownloader(jmcomic.JmDownloader):
     """
-    支持进度回调的自定义下载器
+    带进度回调的下载器
     """
-    def __init__(self, option, progress_callback=None):
+    
+    def __init__(self, option=None, progress_callback=None, decode_images=True):
         super().__init__(option)
         self.progress_callback = progress_callback
+        self.decode_images = decode_images
         self.current_image = 0
         self.total_images = 0
     
@@ -161,6 +300,48 @@ class ProgressDownloader(jmcomic.JmDownloader):
                 image_filename=f"{image.img_file_name}{image.img_file_suffix}",
                 status="downloading"
             )
+    
+    def after_image(self, image, img_save_path):
+        """
+        图片下载完成后解密
+        """
+        super().after_image(image, img_save_path)
+        
+        if not self.decode_images:
+            return
+        
+        # 获取真实scramble_id
+        scramble_id = None
+        if hasattr(image, 'scramble_id') and image.scramble_id is not None:
+            scramble_id = str(image.scramble_id)
+        elif hasattr(image.from_photo, 'scramble_id') and image.from_photo.scramble_id is not None:
+            scramble_id = str(image.from_photo.scramble_id)
+        
+        # 如果无法从image对象获取，尝试从album获取
+        if not scramble_id or scramble_id == '0' or scramble_id == '':
+            try:
+                scramble_id = get_scramble_id(image.aid)
+            except:
+                pass
+        
+        # 如果无法获取scramble_id，使用默认值
+        if not scramble_id or scramble_id == '0' or scramble_id == '':
+            scramble_id = '220980'
+        
+        # 计算分割数
+        num = JmImageTool.get_num(
+            scramble_id,
+            aid=jmcomic.JmcomicText.parse_to_jm_id(image.aid),
+            filename=image.img_file_name
+        )
+        
+        # 解密图片
+        if num > 0:
+            try:
+                img = JmImageTool.open_image(img_save_path)
+                JmImageTool.decode_and_save(num, img, img_save_path)
+            except Exception as e:
+                print(f"图片解密失败: {img_save_path}, 错误: {e}")
 
 def get_total_pages(album_id: int or str, client: jmcomic.JmHtmlClient = None) -> int:
     """
@@ -193,7 +374,8 @@ def get_total_pages(album_id: int or str, client: jmcomic.JmHtmlClient = None) -
 def download_album(album_id: int or str, download_dir: str = None, 
                    client: jmcomic.JmHtmlClient = None, 
                    show_progress: bool = True,
-                   progress_callback: callable = None) -> Tuple[Dict, bool]:
+                   progress_callback: callable = None,
+                   decode_images: bool = True) -> Tuple[Dict, bool]:
     """
     下载漫画
     
@@ -203,6 +385,7 @@ def download_album(album_id: int or str, download_dir: str = None,
         client: JMComic客户端（可选）
         show_progress: 是否显示进度（可选，默认True）
         progress_callback: 进度回调函数（可选），参数: (current, total, image_filename, status)
+        decode_images: 是否解密图片（可选，默认True）
     
     Returns:
         (漫画详情字典, 是否成功)
@@ -230,7 +413,10 @@ def download_album(album_id: int or str, download_dir: str = None,
         option = jmcomic.JmOption.construct({
             'download': {
                 'dir': download_dir,
-                'image': {'suffix': '.jpg'}
+                'image': {
+                    'decode': decode_images,
+                    'suffix': '.jpg'
+                }
             },
             'dir_rule': {
                 'base_dir': download_dir,
@@ -241,7 +427,7 @@ def download_album(album_id: int or str, download_dir: str = None,
     if show_progress:
         print(f"开始下载漫画 {album_id}...")
     
-    downloader = ProgressDownloader(option, progress_callback=progress_callback)
+    downloader = ProgressDownloader(option, progress_callback=progress_callback, decode_images=decode_images)
     album = downloader.download_album(album_id)
     
     success = not downloader.has_download_failures
