@@ -51,7 +51,7 @@ import utils
 jmcomic_api._config = test_config
 utils._config = test_config
 
-TEST_ALBUM_ID = 542774
+TEST_ALBUM_ID = 1323910
 
 def print_header(name):
     print(f"\n{'='*60}")
