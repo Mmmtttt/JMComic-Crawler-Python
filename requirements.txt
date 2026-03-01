@@ -1,0 +1,6 @@
+jmcomic
+commonx>=0.6.38
+curl-cffi
+pillow
+pycryptodome
+pyyaml
