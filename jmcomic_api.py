@@ -1,6 +1,22 @@
 """
-JMComic API 模块
+JMComic API 模块 (v2.0)
 提供漫画搜索、下载、收藏管理等API接口
+
+版本历史:
+- v2.0 (2026-03-02):
+  - 新增图片解密功能 (JmImageTool类)
+  - 新增get_scramble_id()获取漫画scramble_id
+  - download_album()新增decode_images参数控制图片解密
+  - batch_download()新增decode_images和download_dir参数
+  - ProgressDownloader新增decode_images参数支持
+  - 修复scramble_id获取逻辑，现在使用photo_id获取
+
+主要功能:
+- 漫画详情抓取
+- 漫画下载（支持自动解密）
+- 收藏管理
+- 搜索功能（支持分页和范围搜索）
+- 图片解密（手动/自动）
 """
 
 import os

@@ -8,6 +8,7 @@ import os
 import json
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
 
 from jmcomic_api import (
     load_config, get_client, get_option,
@@ -388,9 +389,17 @@ def test_batch_download(client):
 def test_download_original_image(client):
     print_header("download_original_image()")
     
+    test_album_id = "1323910"
+    comic_dir = os.path.join(TEST_DOWNLOAD_DIR, test_album_id)
+    
+    if os.path.exists(comic_dir):
+        import shutil
+        print(f"🗑️  删除已存在的目录: {comic_dir}")
+        shutil.rmtree(comic_dir)
+    
     # 下载原始混淆图片
     detail, success = download_album(
-        1323910, 
+        test_album_id, 
         download_dir=TEST_DOWNLOAD_DIR, 
         client=client,
         decode_images=False
@@ -409,6 +418,9 @@ def test_download_original_image(client):
         test_image = image_files[0]
         test_image_path = os.path.join(comic_dir, test_image)
         
+        # 去掉扩展名
+        test_image_name = os.path.splitext(test_image)[0]
+        
         print(f"\n📸 解密图片: {test_image_path}")
         
         try:
@@ -416,13 +428,17 @@ def test_download_original_image(client):
             from jmcomic_api import JmImageTool
             img = JmImageTool.open_image(test_image_path)
             print(f"✅ 成功打开图片，尺寸: {img.size}")
+            w, h = img.size
+            print(f"   高度 {h}，计算各分割数的余数:")
+            for n in [2, 4, 6, 8, 10, 12]:
+                print(f"     {n} 分割: {h} % {n} = {h % n}")
             
             # 获取真实scramble_id
             scramble_id = get_scramble_id(1323910, client)
-            print(f"🔑 获取到真实scramble_id: {scramble_id}")
+            print(f"\n🔑 获取到 scramble_id: {scramble_id}")
             
-            # 计算分割数
-            num = JmImageTool.get_num(scramble_id, 1323910, test_image)
+            # 计算分割数（使用不带扩展名的文件名）
+            num = JmImageTool.get_num(scramble_id, 1323910, test_image_name)
             print(f"📊 计算得到分割数: {num}")
             
             # 解密并保存
