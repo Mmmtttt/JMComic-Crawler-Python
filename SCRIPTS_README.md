@@ -1,6 +1,6 @@
 # JMComic-Crawler-Python API
 
-禁漫天堂爬虫 API，支持漫画搜索、下载、收藏管理等功能。
+JM漫画获取 API，支持漫画搜索、下载、收藏管理等功能。本api为jmcomic库的封装，提供了更方便的使用方式。
 
 ## 功能特性
 
