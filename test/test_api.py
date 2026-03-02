@@ -1,6 +1,12 @@
 """
 JMComic API 测试脚本
 测试所有API接口的功能和返回格式
+
+测试配置表:
+- TEST_ALBUM_ID: 1323910 (用于测试漫画详情、下载等功能)
+- SEARCH_AUTHOR: "砂漠" (用于搜索功能测试)
+- SEARCH_TAG: "萝莉" (用于范围搜索测试)
+- BATCH_TEST_IDS: [1312953, 1295258] (用于批量下载测试)
 """
 
 import sys
@@ -53,7 +59,38 @@ import utils
 jmcomic_api._config = test_config
 utils._config = test_config
 
+# 测试配置
 TEST_ALBUM_ID = 1323910
+SEARCH_AUTHOR = "砂漠"
+SEARCH_TAG = "萝莉"
+BATCH_TEST_IDS = [1312953, 1295258]
+
+def select_tests():
+    print("\n请选择要运行的测试 (输入数字，多个测试用逗号分隔，输入0运行全部):")
+    tests = [
+        "0: 全部测试",
+        "1: load_config()",
+        "2: get_client()",
+        "3: get_option()",
+        "4: get_album_detail()",
+        "5: download_album()",
+        "6: get_total_pages()",
+        "7: get_local_progress()",
+        "8: search_comics()",
+        "9: search_comics_range()",
+        "10: get_favorite_comics()",
+        "11: database_operations()",
+        "12: progress_operations()",
+        "13: utils_functions()",
+        "14: image_decoding()",
+        "15: batch_download()",
+        "16: download_original_image()"
+    ]
+    for test in tests:
+        print(f"  {test}")
+    
+    selection = input("\n请输入选择: ").strip()
+    return selection
 
 def print_header(name):
     print(f"\n{'='*60}")
@@ -156,7 +193,7 @@ def test_get_local_progress():
 
 def test_search_comics(client):
     print_header("search_comics()")
-    result = search_comics("砂漠", max_pages=1, client=client)
+    result = search_comics(SEARCH_AUTHOR, max_pages=1, client=client)
     
     print(f"query: {result.get('query')}")
     print(f"total: {result.get('total')}")
@@ -179,7 +216,7 @@ def test_search_comics(client):
 def test_search_comics_range(client):
     print_header("search_comics() 范围搜索")
     
-    result = search_comics("萝莉", client=client, start_index=5, end_index=10)
+    result = search_comics(SEARCH_TAG, client=client, start_index=5, end_index=10)
     
     print(f"total: {result.get('total')}")
     print(f"start_index: {result.get('start_index')}")
@@ -368,7 +405,7 @@ def test_image_decoding(client=None):
 def test_batch_download(client):
     print_header("batch_download()")
     
-    test_ids = [1312953, 1295258]
+    test_ids = BATCH_TEST_IDS
     
     def progress_callback(current, total, album_id, status):
         print(f"  [{current}/{total}] {album_id}: {status}")
@@ -589,5 +626,135 @@ def run_all_tests():
     
     return results
 
+def run_selected_tests(selection):
+    print(f"\n{'='*60}")
+    print(f"开始运行选择的测试: {selection}")
+    print('='*60)
+    
+    results = []
+    
+    # 处理选择
+    test_indices = []
+    if selection == "0":
+        test_indices = list(range(1, 17))  # 全部测试
+    else:
+        # 分割逗号分隔的数字
+        parts = selection.split(',')
+        for part in parts:
+            try:
+                num = int(part.strip())
+                if 1 <= num <= 16:
+                    test_indices.append(num)
+            except ValueError:
+                print(f"⚠️  无效输入: {part}，将被忽略")
+    
+    if not test_indices:
+        print("❌ 没有有效的测试项选择")
+        return results
+    
+    # 初始化测试所需的资源
+    client = None
+    detail = None
+    
+    # 按顺序执行测试
+    for idx in test_indices:
+        try:
+            if idx == 1:
+                test_load_config()
+                results.append(("load_config", True, ""))
+            elif idx == 2:
+                client = test_get_client()
+                results.append(("get_client", True, ""))
+            elif idx == 3:
+                test_get_option()
+                results.append(("get_option", True, ""))
+            elif idx == 4:
+                if client is None:
+                    client = test_get_client()
+                detail = test_get_album_detail(client)
+                results.append(("get_album_detail", True, ""))
+            elif idx == 5:
+                if client is None:
+                    client = test_get_client()
+                download_detail, success = test_download_album(client)
+                results.append(("download_album", True, ""))
+            elif idx == 6:
+                if client is None:
+                    client = test_get_client()
+                test_get_total_pages(client)
+                results.append(("get_total_pages", True, ""))
+            elif idx == 7:
+                test_get_local_progress()
+                results.append(("get_local_progress", True, ""))
+            elif idx == 8:
+                if client is None:
+                    client = test_get_client()
+                test_search_comics(client)
+                results.append(("search_comics", True, ""))
+            elif idx == 9:
+                if client is None:
+                    client = test_get_client()
+                test_search_comics_range(client)
+                results.append(("search_comics_range", True, ""))
+            elif idx == 10:
+                if client is None:
+                    client = test_get_client()
+                test_get_favorite_comics(client)
+                results.append(("get_favorite_comics", True, ""))
+            elif idx == 11:
+                if detail is None:
+                    if client is None:
+                        client = test_get_client()
+                    detail = test_get_album_detail(client)
+                test_database_operations(detail)
+                results.append(("database_operations", True, ""))
+            elif idx == 12:
+                test_progress_operations()
+                results.append(("progress_operations", True, ""))
+            elif idx == 13:
+                test_utils_functions()
+                results.append(("utils_functions", True, ""))
+            elif idx == 14:
+                test_image_decoding(client)
+                results.append(("image_decoding", True, ""))
+            elif idx == 15:
+                if client is None:
+                    client = test_get_client()
+                test_batch_download(client)
+                results.append(("batch_download", True, ""))
+            elif idx == 16:
+                if client is None:
+                    client = test_get_client()
+                test_download_original_image(client)
+                results.append(("download_original_image", True, ""))
+        except Exception as e:
+            test_name = ["load_config", "get_client", "get_option", "get_album_detail", "download_album", 
+                        "get_total_pages", "get_local_progress", "search_comics", "search_comics_range", 
+                        "get_favorite_comics", "database_operations", "progress_operations", "utils_functions", 
+                        "image_decoding", "batch_download", "download_original_image"][idx-1]
+            results.append((test_name, False, str(e)))
+            print(f"❌ {test_name} 失败: {e}")
+    
+    # 输出测试结果
+    print("\n" + "="*60)
+    print("测试结果汇总")
+    print("="*60)
+    
+    passed = sum(1 for _, success, _ in results if success)
+    failed = sum(1 for _, success, _ in results if not success)
+    
+    for name, success, error in results:
+        status = "✅ 通过" if success else f"❌ 失败: {error}"
+        print(f"{name}: {status}")
+    
+    print(f"\n总计: {passed} 通过, {failed} 失败")
+    print("="*60)
+    
+    return results
+
 if __name__ == "__main__":
-    run_all_tests()
+    selection = select_tests()
+    if selection == "0":
+        run_all_tests()
+    else:
+        run_selected_tests(selection)
