@@ -74,7 +74,7 @@ def get_client(username: str = None, password: str = None) -> jmcomic.JmHtmlClie
         },
         'dir_rule': {
             'base_dir': config.get("download_dir", "pictures"),
-            'rule': 'Bd_Aid'
+            'rule': 'Bd_Aid_Pindex'
         }
     })
     
@@ -102,7 +102,7 @@ def get_option() -> jmcomic.JmOption:
         },
         'dir_rule': {
             'base_dir': config.get("download_dir", "pictures"),
-            'rule': 'Bd_Aid'
+            'rule': 'Bd_Aid_Pindex'
         }
     })
     return _option
@@ -400,7 +400,7 @@ def download_album(album_id: int or str, download_dir: str = None,
         },
         'dir_rule': {
             'base_dir': download_dir,
-            'rule': 'Bd_Aid'
+            'rule': 'Bd_Aid_Pindex'
         }
     })
     
@@ -441,12 +441,13 @@ def get_local_progress(album_id: int or str, download_dir: str = None) -> int:
     if not os.path.exists(comic_dir):
         return 0
     
-    image_files = []
-    for file in os.listdir(comic_dir):
-        if file.endswith('.jpg') or file.endswith('.webp') or file.endswith('.png'):
-            image_files.append(file)
+    image_count = 0
+    for root, _, files in os.walk(comic_dir):
+        for file in files:
+            if file.endswith('.jpg') or file.endswith('.webp') or file.endswith('.png'):
+                image_count += 1
     
-    return len(image_files)
+    return image_count
 
 
 def search_comics(query: str, page: int = 1, max_pages: int = None,
