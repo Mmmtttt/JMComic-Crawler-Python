@@ -637,8 +637,32 @@ def get_favorite_comics(username: str = None, password: str = None,
     """
     if client is None:
         client = get_client(username, password)
-    
-    favorite_page = client.favorite_folder(page=1, order_by=jmcomic.JmMagicConstants.ORDER_BY_LATEST, folder_id='0')
+
+    def fetch_favorite_page(page_num: int):
+        nonlocal client
+        try:
+            return client.favorite_folder(
+                page=page_num,
+                order_by=jmcomic.JmMagicConstants.ORDER_BY_LATEST,
+                folder_id='0'
+            )
+        except Exception as e:
+            # 收藏分页过程中登录态可能失效，自动重登后重试当前页一次
+            err = str(e)
+            if "請先登入會員" in err or '"code":401' in err:
+                config = load_config()
+                login_user = username or config.get("username", "")
+                login_pass = password or config.get("password", "")
+                if login_user and login_pass:
+                    client = get_client(login_user, login_pass)
+                    return client.favorite_folder(
+                        page=page_num,
+                        order_by=jmcomic.JmMagicConstants.ORDER_BY_LATEST,
+                        folder_id='0'
+                    )
+            raise
+
+    favorite_page = fetch_favorite_page(1)
     
     total = favorite_page.total
     comic_ids = []
@@ -652,7 +676,7 @@ def get_favorite_comics(username: str = None, password: str = None,
     
     if favorite_page.page_count > 1:
         for page in range(2, favorite_page.page_count + 1):
-            page_result = client.favorite_folder(page=page, order_by=jmcomic.JmMagicConstants.ORDER_BY_LATEST, folder_id='0')
+            page_result = fetch_favorite_page(page)
             for album_id, album_info in page_result.content:
                 comic_ids.append({
                     "album_id": int(album_id),
