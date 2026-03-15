@@ -22,6 +22,7 @@ JMComic API 模块 (v2.0)
 import os
 import jmcomic
 import json
+import re
 from typing import Dict, List, Optional, Tuple, Generator
 from datetime import datetime
 from PIL import Image
@@ -58,12 +59,14 @@ def load_config() -> Dict:
 def get_client(username: str = None, password: str = None) -> jmcomic.JmHtmlClient:
     """获取JMComic客户端"""
     global _client, _option
-    if _client is not None and username is None:
+    if _client is not None and username is None and password is None:
         return _client
     
     config = load_config()
-    username = username or config.get("username", "")
-    password = password or config.get("password", "")
+    if username is None:
+        username = config.get("username", "")
+    if password is None:
+        password = config.get("password", "")
     
     _option = jmcomic.JmOption.construct({
         'download': {
@@ -450,9 +453,36 @@ def get_local_progress(album_id: int or str, download_dir: str = None) -> int:
     return image_count
 
 
-def search_comics(query: str, page: int = 1, max_pages: int = None,
-                  client: jmcomic.JmHtmlClient = None,
-                  start_index: int = None, end_index: int = None) -> Dict:
+def _normalize_search_query(query: str) -> str:
+    """
+    归一化关键词，尽量贴近网页搜索输入行为。
+    例如: `同人(As109)` -> `同人 (As109)`
+    """
+    if not isinstance(query, str):
+        return query
+
+    normalized = query
+    normalized = re.sub(r'(?<=[0-9A-Za-z\u4e00-\u9fff])\(', ' (', normalized)
+    normalized = re.sub(r'(?<=[0-9A-Za-z\u4e00-\u9fff])（', ' （', normalized)
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    return normalized
+
+
+def _build_search_query_candidates(query: str) -> List[str]:
+    candidates: List[str] = []
+
+    def _add(candidate: str):
+        if isinstance(candidate, str) and candidate and candidate not in candidates:
+            candidates.append(candidate)
+
+    _add(query)
+    _add(_normalize_search_query(query))
+    return candidates
+
+
+def _search_comics_single_query(query: str, page: int = 1, max_pages: int = None,
+                                client: jmcomic.JmHtmlClient = None,
+                                start_index: int = None, end_index: int = None) -> Dict:
     """
     搜索漫画
     
@@ -477,9 +507,6 @@ def search_comics(query: str, page: int = 1, max_pages: int = None,
             "results": list        # 搜索结果列表
         }
     """
-    if client is None:
-        client = get_client()
-    
     first_page = client.search_site(
         search_query=query,
         page=page,
@@ -583,9 +610,57 @@ def search_comics(query: str, page: int = 1, max_pages: int = None,
         "results": all_results
     }
 
+
+def search_comics(query: str, page: int = 1, max_pages: int = None,
+                  client: jmcomic.JmHtmlClient = None,
+                  start_index: int = None, end_index: int = None,
+                  enable_query_fallback: bool = False) -> Dict:
+    """
+    搜索漫画（带关键词回退策略）
+    """
+    if client is None:
+        client = get_client()
+
+    query_candidates = _build_search_query_candidates(query) if enable_query_fallback else [query]
+    best_result = None
+    first_error = None
+
+    for candidate in query_candidates:
+        try:
+            result = _search_comics_single_query(
+                candidate,
+                page=page,
+                max_pages=max_pages,
+                client=client,
+                start_index=start_index,
+                end_index=end_index
+            )
+            if best_result is None or result.get('total', 0) > best_result.get('total', 0):
+                best_result = result
+        except Exception as e:
+            if first_error is None:
+                first_error = e
+            jmcomic.jm_log(
+                'api.search.fallback',
+                f'candidate failed: "{candidate}", error: {e}'
+            )
+
+    if best_result is None:
+        raise first_error if first_error is not None else RuntimeError(f"搜索失败: {query}")
+
+    if best_result.get('query') != query:
+        jmcomic.jm_log(
+            'api.search.fallback',
+            f'query adjusted: "{query}" -> "{best_result.get("query")}", '
+            f'total={best_result.get("total")}, page_count={best_result.get("page_count")}'
+        )
+
+    return best_result
+
 def search_comics_full(query: str, page: int = 1, max_pages: int = None,
                        client: jmcomic.JmHtmlClient = None,
-                       start_index: int = None, end_index: int = None) -> Dict:
+                       start_index: int = None, end_index: int = None,
+                       enable_query_fallback: bool = False) -> Dict:
     """
     搜索漫画并获取详细信息
     
@@ -600,7 +675,15 @@ def search_comics_full(query: str, page: int = 1, max_pages: int = None,
     Returns:
         搜索结果字典（包含详细信息）
     """
-    result = search_comics(query, page, max_pages, client, start_index, end_index)
+    result = search_comics(
+        query,
+        page,
+        max_pages,
+        client,
+        start_index,
+        end_index,
+        enable_query_fallback=enable_query_fallback
+    )
     
     if client is None:
         client = get_client()
