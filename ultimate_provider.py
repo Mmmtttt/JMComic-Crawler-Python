@@ -28,11 +28,31 @@ class JMComicProvider(ProtocolProvider):
     def get_query_status(self, config: Dict[str, Any]) -> Dict[str, Any]:
         return get_adapter_credential_status(self.ADAPTER_NAME, config)
 
+    def _get_storage_client(self, config: Dict[str, Any]):
+        return AdapterFactory.get_adapter(self.ADAPTER_NAME, dict(config or {}))
+
     def get_legacy_client(self, config: Dict[str, Any], *args, **kwargs):
         ensure_adapter_query_ready(self.ADAPTER_NAME, config)
         return AdapterFactory.get_adapter(self.ADAPTER_NAME, dict(config or {}))
 
     def execute(self, capability: str, params: Dict[str, Any], context: Dict[str, Any], config: Dict[str, Any]):
+        if capability == "storage.comic_dir.resolve":
+            adapter = self._get_storage_client(config)
+            return adapter.get_comic_dir(
+                str(params.get("album_id") or ""),
+                author=params.get("author"),
+                title=params.get("title"),
+                base_dir=params.get("base_dir"),
+            )
+        if capability == "asset.preview.resolve":
+            adapter = self._get_storage_client(config)
+            return adapter.get_preview_image_urls(
+                str(params.get("album_id") or ""),
+                list(params.get("preview_pages") or []),
+            )
+        if capability == "health.query.status":
+            return self.get_query_status(config)
+
         adapter = self.get_legacy_client(config)
         if capability == "catalog.search":
             return adapter.search_albums(
@@ -66,19 +86,4 @@ class JMComicProvider(ProtocolProvider):
                 bool(params.get("show_progress", False)),
             )
             return {"detail": detail, "success": success}
-        if capability == "asset.preview.resolve":
-            return adapter.get_preview_image_urls(
-                str(params.get("album_id") or ""),
-                list(params.get("preview_pages") or []),
-            )
-        if capability == "storage.comic_dir.resolve":
-            return adapter.get_comic_dir(
-                str(params.get("album_id") or ""),
-                author=params.get("author"),
-                title=params.get("title"),
-                base_dir=params.get("base_dir"),
-            )
-        if capability == "health.query.status":
-            return self.get_query_status(config)
         raise ValueError(f"unsupported capability: {capability}")
-

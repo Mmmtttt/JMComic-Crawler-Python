@@ -8,14 +8,38 @@
     "config_key": "jmcomic"
   },
   "media_types": ["comic"],
+  "identity": {
+    "content_type": "comic",
+    "host_id_prefix": "JM",
+    "platform_label": "JM"
+  },
+  "presentation": {
+    "media_card": {
+      "cover": {
+        "aspect_ratio": "2 / 3",
+        "fit": "cover",
+        "path_mode": "local_static"
+      },
+      "badge": {
+        "show_platform_label": true,
+        "label": "JM"
+      }
+    }
+  },
   "capabilities": [
-    { "key": "catalog.search" },
+    {
+      "key": "catalog.search",
+      "result_detail_policy": {
+        "mode": "search_payload_if_fields_present",
+        "fields": ["author", "tags"]
+      }
+    },
     { "key": "catalog.detail" },
     { "key": "collection.favorites" },
     { "key": "collection.favorites_basic" },
     { "key": "collection.list" },
     { "key": "collection.detail" },
-    { "key": "asset.bundle.fetch" },
+    { "key": "asset.bundle.fetch", "default_params": { "decode_images": true } },
     { "key": "asset.cover.fetch" },
     { "key": "asset.preview.resolve" },
     { "key": "storage.comic_dir.resolve" },
@@ -37,8 +61,32 @@
       }
     ]
   },
+  "storage": {
+    "data_dir_bindings": [
+      {
+        "config_field": "download_dir",
+        "relative_dir": "comic/{host_prefix}"
+      }
+    ]
+  },
+  "collections": {
+    "list_mode": "virtual_only",
+    "virtual_lists": [
+      {
+        "id": "favorites",
+        "name": "我的收藏",
+        "description": "平台收藏夹中的所有漫画",
+        "capability": "collection.favorites_basic"
+      }
+    ]
+  },
   "compatibility": {
     "legacy_adapter_name": "jmcomic",
     "legacy_platforms": ["JM"]
+  },
+  "resource_policy": {
+    "import": {
+      "detail_max_workers": 3
+    }
   }
 }
