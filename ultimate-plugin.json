@@ -11,7 +11,8 @@
   "identity": {
     "content_type": "comic",
     "host_id_prefix": "JM",
-    "platform_label": "JM"
+    "platform_label": "JM",
+    "aliases": ["jm", "jmcomic"]
   },
   "presentation": {
     "media_card": {
@@ -79,10 +80,6 @@
         "capability": "collection.favorites_basic"
       }
     ]
-  },
-  "compatibility": {
-    "legacy_adapter_name": "jmcomic",
-    "legacy_platforms": ["JM"]
   },
   "resource_policy": {
     "import": {
