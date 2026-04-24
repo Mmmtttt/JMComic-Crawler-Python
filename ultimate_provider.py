@@ -12,10 +12,16 @@ from PIL import Image
 CURRENT_DIR = os.path.abspath(os.path.dirname(__file__))
 THIRD_PARTY_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 BACKEND_ROOT = os.path.abspath(os.path.join(THIRD_PARTY_ROOT, ".."))
+LIB_DIR = os.path.join(CURRENT_DIR, "lib")
+LIB_SRC_DIR = os.path.join(LIB_DIR, "src")
 if BACKEND_ROOT not in sys.path:
     sys.path.insert(0, BACKEND_ROOT)
 if CURRENT_DIR not in sys.path:
     sys.path.insert(0, CURRENT_DIR)
+if LIB_DIR not in sys.path:
+    sys.path.insert(0, LIB_DIR)
+if LIB_SRC_DIR not in sys.path:
+    sys.path.insert(0, LIB_SRC_DIR)
 
 from infrastructure.logger import error_logger
 from protocol.base import ProtocolProvider
