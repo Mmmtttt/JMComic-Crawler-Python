@@ -28,9 +28,9 @@ from protocol.base import ProtocolProvider
 from third_party.credential_guard import get_adapter_credential_status
 
 from jmcomic_api import (
+    build_client as build_jm_client,
     download_album as jm_download_album,
     get_album_detail,
-    get_client,
     get_favorite_comics,
     get_favorite_comics_full,
     search_comics,
@@ -44,8 +44,8 @@ class JMComicProvider(ProtocolProvider):
 
     def normalize_config(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         normalized = dict(payload or {})
+        normalized.pop("config_path", None)
         normalized.setdefault("enabled", True)
-        normalized.setdefault("config_path", "JMComic-Crawler-Python/config.json")
         return normalized
 
     def get_query_status(self, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -63,10 +63,22 @@ class JMComicProvider(ProtocolProvider):
             raise RuntimeError(str(status.get("message") or "JM 平台未配置账号或密码，不能使用该平台查询。"))
         return self._get_login_credentials(config)
 
+    @staticmethod
+    def _resolve_download_dir(config: Dict[str, Any], params: Dict[str, Any] | None = None) -> str:
+        if isinstance(params, dict):
+            download_dir = str(params.get("download_dir") or "").strip()
+            if download_dir:
+                return download_dir
+        download_dir = str((config or {}).get("download_dir") or "").strip()
+        if download_dir:
+            return download_dir
+        raise RuntimeError("JM 下载目录未配置")
+
     def _get_search_client(self, config: Dict[str, Any]):
         username, password = self._ensure_query_ready(config)
+        download_dir = str((config or {}).get("download_dir") or "").strip()
         try:
-            return get_client(username=username, password=password), username
+            return build_jm_client(username=username, password=password, download_dir=download_dir), username
         except Exception as exc:
             raise RuntimeError("JM API 登录失败，无法执行登录态搜索。请检查账号密码或网络后重试。") from exc
 
@@ -188,14 +200,14 @@ class JMComicProvider(ProtocolProvider):
         }
 
     def _get_album(self, config: Dict[str, Any], album_id: str) -> Dict[str, Any]:
-        username, password = self._ensure_query_ready(config)
-        detail = get_album_detail(int(album_id), client=get_client(username=username, password=password))
+        client, username = self._get_search_client(config)
+        detail = get_album_detail(int(album_id), client=client)
         return self._convert_to_meta_format([detail], username=username)
 
     def _get_favorites_basic(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        username, password = self._ensure_query_ready(config)
-        get_client(username=username, password=password)
-        result = get_favorite_comics(username=username, password=password)
+        client, username = self._get_search_client(config)
+        _, password = self._ensure_query_ready(config)
+        result = get_favorite_comics(username=username, password=password, client=client)
         basic_albums = result.get("comics", [])
         converted = self._convert_basic_to_meta_format(basic_albums)
         return {
@@ -207,9 +219,9 @@ class JMComicProvider(ProtocolProvider):
         }
 
     def _get_favorites(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        username, password = self._ensure_query_ready(config)
-        get_client(username=username, password=password)
-        result = get_favorite_comics_full(username=username, password=password)
+        client, username = self._get_search_client(config)
+        _, password = self._ensure_query_ready(config)
+        result = get_favorite_comics_full(username=username, password=password, client=client)
         albums = result.get("comics", [])
         return self._convert_to_meta_format(albums, username=username)
 
@@ -301,9 +313,12 @@ class JMComicProvider(ProtocolProvider):
 
         if capability == "asset.bundle.fetch":
             try:
+                client, _ = self._get_search_client(config)
+                download_dir = self._resolve_download_dir(config, params)
                 detail, success = jm_download_album(
                     int(str(params.get("album_id") or "0") or 0),
-                    download_dir=str(params.get("download_dir") or ""),
+                    download_dir=download_dir,
+                    client=client,
                     show_progress=bool(params.get("show_progress", False)),
                     decode_images=bool((params.get("extra") or {}).get("decode_images", True)),
                 )

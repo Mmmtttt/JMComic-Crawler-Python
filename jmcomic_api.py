@@ -33,6 +33,31 @@ _config = None
 _client = None
 _option = None
 
+
+def _resolve_download_dir(download_dir: str = None) -> str:
+    raw = str(download_dir or "").strip()
+    if raw:
+        return raw
+    config = load_config()
+    return str(config.get("download_dir", "pictures") or "pictures").strip() or "pictures"
+
+
+def _build_option(download_dir: str, decode_images: bool = True) -> jmcomic.JmOption:
+    resolved_dir = _resolve_download_dir(download_dir)
+    return jmcomic.JmOption.construct({
+        'download': {
+            'dir': resolved_dir,
+            'image': {
+                'decode': decode_images,
+                'suffix': '.jpg'
+            }
+        },
+        'dir_rule': {
+            'base_dir': resolved_dir,
+            'rule': 'Bd_Aid_Pindex'
+        }
+    })
+
 def load_config() -> Dict:
     """加载配置文件"""
     global _config
@@ -68,18 +93,7 @@ def get_client(username: str = None, password: str = None) -> jmcomic.JmHtmlClie
     if password is None:
         password = config.get("password", "")
     
-    _option = jmcomic.JmOption.construct({
-        'download': {
-            'dir': config.get("download_dir", "pictures"),
-            'image': {
-                'suffix': '.jpg'
-            }
-        },
-        'dir_rule': {
-            'base_dir': config.get("download_dir", "pictures"),
-            'rule': 'Bd_Aid_Pindex'
-        }
-    })
+    _option = _build_option(config.get("download_dir", "pictures"), decode_images=False)
     
     _client = _option.build_jm_client()
     
@@ -88,6 +102,18 @@ def get_client(username: str = None, password: str = None) -> jmcomic.JmHtmlClie
     
     return _client
 
+
+def build_client(
+    username: str = None,
+    password: str = None,
+    download_dir: str = None,
+) -> jmcomic.JmHtmlClient:
+    """构建独立客户端，不依赖插件级全局缓存。"""
+    client = _build_option(download_dir, decode_images=False).build_jm_client()
+    if username and password:
+        client.login(username, password)
+    return client
+
 def get_option() -> jmcomic.JmOption:
     """获取JMComic配置选项"""
     global _option
@@ -95,19 +121,7 @@ def get_option() -> jmcomic.JmOption:
         return _option
     
     config = load_config()
-    _option = jmcomic.JmOption.construct({
-        'download': {
-            'dir': config.get("download_dir", "pictures"),
-            'image': {
-                'decode': True,
-                'suffix': '.jpg'
-            }
-        },
-        'dir_rule': {
-            'base_dir': config.get("download_dir", "pictures"),
-            'rule': 'Bd_Aid_Pindex'
-        }
-    })
+    _option = _build_option(config.get("download_dir", "pictures"), decode_images=True)
     return _option
 
 def get_scramble_id(album_id: int or str, client: jmcomic.JmHtmlClient = None) -> str:
@@ -379,8 +393,7 @@ def download_album(album_id: int or str, download_dir: str = None,
         - local_pages: 本地已下载图片数
         - downloaded: 是否下载成功
     """
-    config = load_config()
-    download_dir = download_dir or config.get("download_dir", "pictures")
+    download_dir = _resolve_download_dir(download_dir)
     
     if client is None:
         client = get_client()
@@ -393,19 +406,7 @@ def download_album(album_id: int or str, download_dir: str = None,
     if show_progress:
         print(f"网络端图片总数: {total_pages}")
     
-    option = jmcomic.JmOption.construct({
-        'download': {
-            'dir': download_dir,
-            'image': {
-                'decode': decode_images,
-                'suffix': '.jpg'
-            }
-        },
-        'dir_rule': {
-            'base_dir': download_dir,
-            'rule': 'Bd_Aid_Pindex'
-        }
-    })
+    option = _build_option(download_dir, decode_images=decode_images)
     
     if show_progress:
         print(f"开始下载漫画 {album_id}...")
@@ -437,8 +438,7 @@ def get_local_progress(album_id: int or str, download_dir: str = None) -> int:
     Returns:
         已下载图片数量
     """
-    config = load_config()
-    download_dir = download_dir or config.get("download_dir", "pictures")
+    download_dir = _resolve_download_dir(download_dir)
     
     comic_dir = os.path.join(download_dir, str(album_id))
     if not os.path.exists(comic_dir):
@@ -733,11 +733,14 @@ def get_favorite_comics(username: str = None, password: str = None,
             # 收藏分页过程中登录态可能失效，自动重登后重试当前页一次
             err = str(e)
             if "請先登入會員" in err or '"code":401' in err:
-                config = load_config()
-                login_user = username or config.get("username", "")
-                login_pass = password or config.get("password", "")
+                login_user = str(username or "").strip()
+                login_pass = str(password or "").strip()
+                if not login_user or not login_pass:
+                    config = load_config()
+                    login_user = login_user or str(config.get("username", "") or "").strip()
+                    login_pass = login_pass or str(config.get("password", "") or "").strip()
                 if login_user and login_pass:
-                    client = get_client(login_user, login_pass)
+                    client = build_client(login_user, login_pass)
                     return client.favorite_folder(
                         page=page_num,
                         order_by=jmcomic.JmMagicConstants.ORDER_BY_LATEST,
