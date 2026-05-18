@@ -84,12 +84,23 @@
       }
     ]
   },
+  "runtime": {
+    "python_paths": [".", "lib", "lib/src"],
+    "vendor_path_templates": [
+      "vendor/python",
+      "vendor/python/{python_tag}",
+      "vendor/python/{python_tag}/{platform_tag}"
+    ]
+  },
   "resource_policy": {
     "import": {
       "detail_max_workers": 3
     }
   },
   "packaging": {
+    "external": {
+      "pip_requirements": ["commonx>=0.6.38", "curl_cffi>=0.6.0", "pycryptodome>=3.20.0"]
+    },
     "pyinstaller": {
       "collect_all": ["common", "curl_cffi", "Crypto"],
       "pip_requirements": ["commonx>=0.6.38", "curl_cffi>=0.6.0", "pycryptodome>=3.20.0"]
