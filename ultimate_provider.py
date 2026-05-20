@@ -25,7 +25,7 @@ if LIB_SRC_DIR not in sys.path:
 
 from infrastructure.logger import error_logger
 from protocol.base import ProtocolProvider
-from third_party.credential_guard import get_adapter_credential_status
+from protocol.credential_guard import get_adapter_credential_status
 
 from jmcomic_api import (
     build_client as build_jm_client,
