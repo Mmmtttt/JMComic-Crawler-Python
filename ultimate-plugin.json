@@ -115,6 +115,7 @@
       "pip_options": ["--no-deps"],
       "pip_requirements": [
         "cffi==1.17.1",
+        "chaquopy-libffi>=3.3",
         "pycparser>=2.21",
         "commonx>=0.6.38",
         "pycryptodome==3.21.0",
