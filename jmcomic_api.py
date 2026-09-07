@@ -33,6 +33,20 @@ _config = None
 _client = None
 _option = None
 
+try:
+    import android_runtime
+except Exception:
+    android_runtime = None
+
+
+def _is_android_runtime() -> bool:
+    return bool(android_runtime and android_runtime.is_android_runtime())
+
+
+def _install_android_runtime_hooks() -> None:
+    if android_runtime:
+        android_runtime.install_android_webp_fallback()
+
 
 def _resolve_download_dir(download_dir: str = None) -> str:
     raw = str(download_dir or "").strip()
@@ -44,14 +58,24 @@ def _resolve_download_dir(download_dir: str = None) -> str:
 
 def _build_option(download_dir: str, decode_images: bool = True) -> jmcomic.JmOption:
     resolved_dir = _resolve_download_dir(download_dir)
+    download_config = {
+        'dir': resolved_dir,
+        'image': {
+            'decode': decode_images,
+            'suffix': '.jpg'
+        }
+    }
+    if _is_android_runtime():
+        _install_android_runtime_hooks()
+        android_overrides = android_runtime.android_download_overrides()
+        threading_config = android_overrides.get("threading")
+        image_config = android_overrides.get("image")
+        if isinstance(threading_config, dict):
+            download_config["threading"] = threading_config
+        if isinstance(image_config, dict):
+            download_config["image"].update(image_config)
     return jmcomic.JmOption.construct({
-        'download': {
-            'dir': resolved_dir,
-            'image': {
-                'decode': decode_images,
-                'suffix': '.jpg'
-            }
-        },
+        'download': download_config,
         'dir_rule': {
             'base_dir': resolved_dir,
             'rule': 'Bd_Aid_Pindex'
@@ -325,6 +349,11 @@ class ProgressDownloader(jmcomic.JmDownloader):
     
     def before_album(self, album):
         super().before_album(album)
+        if android_runtime:
+            android_runtime.append_download_log(
+                self.option.download.dir,
+                f"album.before album_id={getattr(album, 'id', '')} photos={len(album)} pages={getattr(album, 'page_count', '')}",
+            )
         self.total_images = 0
         self.current_image = 0
         for i in range(len(album)):
@@ -334,6 +363,11 @@ class ProgressDownloader(jmcomic.JmDownloader):
     
     def before_image(self, image, img_save_path):
         super().before_image(image, img_save_path)
+        if android_runtime:
+            android_runtime.append_download_log(
+                img_save_path,
+                f"image.before index={getattr(image, 'index', '')} url={getattr(image, 'img_url', '')} path={img_save_path}",
+            )
         if self.progress_callback:
             self.progress_callback(
                 current=image.index,
@@ -341,6 +375,19 @@ class ProgressDownloader(jmcomic.JmDownloader):
                 image_filename=f"{image.img_file_name}{image.img_file_suffix}",
                 status="downloading"
             )
+
+    def after_image(self, image, img_save_path):
+        super().after_image(image, img_save_path)
+        if android_runtime:
+            try:
+                file_size = os.path.getsize(img_save_path) if os.path.exists(img_save_path) else 0
+            except Exception:
+                file_size = 0
+            android_runtime.append_download_log(
+                img_save_path,
+                f"image.after index={getattr(image, 'index', '')} bytes={file_size} path={img_save_path}",
+            )
+            android_runtime.collect_after_large_image()
 
 def get_total_pages(album_id: int or str, client: jmcomic.JmHtmlClient = None) -> int:
     """
@@ -412,10 +459,25 @@ def download_album(album_id: int or str, download_dir: str = None,
         print(f"开始下载漫画 {album_id}...")
     
     downloader = ProgressDownloader(option, progress_callback=progress_callback, decode_images=decode_images)
-    album = downloader.download_album(album_id)
+    if android_runtime:
+        android_runtime.append_download_log(
+            download_dir,
+            f"album.download.start album_id={album_id} decode_images={decode_images}",
+        )
+    try:
+        album = downloader.download_album(album_id)
+    except Exception as exc:
+        if android_runtime:
+            android_runtime.append_download_log(download_dir, f"album.download.error album_id={album_id} error={exc!r}")
+        raise
     
     success = not downloader.has_download_failures
     local_pages = get_local_progress(album_id, download_dir)
+    if android_runtime:
+        android_runtime.append_download_log(
+            download_dir,
+            f"album.download.done album_id={album_id} success={success} local_pages={local_pages} total_pages={total_pages}",
+        )
     
     if show_progress:
         print(f"下载完成: {local_pages}/{total_pages} 张图片")

@@ -110,6 +110,16 @@
     "pyinstaller": {
       "collect_all": ["common", "curl_cffi", "Crypto"],
       "pip_requirements": ["commonx>=0.6.38", "curl_cffi>=0.6.0", "pycryptodome>=3.20.0"]
+    },
+    "android": {
+      "pip_options": ["--no-deps"],
+      "pip_requirements": [
+        "cffi==1.17.1",
+        "pycparser>=2.21",
+        "commonx>=0.6.38",
+        "pycryptodome==3.21.0",
+        "curl-cffi==0.16.3"
+      ]
     }
   }
 }

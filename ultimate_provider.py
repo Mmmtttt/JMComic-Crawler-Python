@@ -37,6 +37,11 @@ from jmcomic_api import (
     search_comics_full,
 )
 
+try:
+    import android_runtime
+except Exception:
+    android_runtime = None
+
 
 class JMComicProvider(ProtocolProvider):
     ADAPTER_NAME = "jmcomic"
@@ -285,7 +290,10 @@ class JMComicProvider(ProtocolProvider):
             return preview_urls
 
         if capability == "health.query.status":
-            return self.get_query_status(config)
+            status = self.get_query_status(config)
+            if android_runtime:
+                status["runtime"] = android_runtime.diagnostics()
+            return status
 
         if capability == "catalog.search":
             return self._search(
@@ -337,7 +345,11 @@ class JMComicProvider(ProtocolProvider):
                 }
                 response = requests.get(cover_url, headers=headers, timeout=30)
                 response.raise_for_status()
-                with Image.open(BytesIO(response.content)) as image:
+                if android_runtime:
+                    image_context = android_runtime.open_pillow_image_from_bytes(response.content)
+                else:
+                    image_context = Image.open(BytesIO(response.content))
+                with image_context as image:
                     if image.mode in ("RGBA", "P"):
                         image = image.convert("RGB")
                     image.save(save_path, "JPEG", quality=95)
