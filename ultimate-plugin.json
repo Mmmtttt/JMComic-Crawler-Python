@@ -112,6 +112,7 @@
       "pip_requirements": ["commonx>=0.6.38", "curl_cffi>=0.6.0", "pycryptodome>=3.20.0"]
     },
     "android": {
+      "enabled": true,
       "pip_options": ["--no-deps"],
       "pip_requirements": [
         "cffi==1.17.1",
