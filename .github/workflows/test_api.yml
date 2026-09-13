@@ -5,6 +5,7 @@ on:
     - cron: "0 0 * * *"
   workflow_dispatch:
   push:
+  pull_request:
 
 jobs:
   test: # This code is based on https://github.com/gaogaotiantian/viztracer/blob/master/.github/workflows/python-package.yml
