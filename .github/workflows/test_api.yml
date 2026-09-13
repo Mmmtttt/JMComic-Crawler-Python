@@ -30,13 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+          pip install -r requirements.txt pytest
 
-      - name: Install local
-        run: |
-          pip install -e ./
-
-      - name: Run Test
-        run: |
-          cd ./tests/
-          python -m unittest
+      - name: Run deterministic provider tests
+        run: python -m pytest test/test_provider_contract.py -q
