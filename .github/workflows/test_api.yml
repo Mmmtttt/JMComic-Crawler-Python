@@ -37,4 +37,5 @@ jobs:
           python -m pytest
           test/test_provider_contract.py
           test/test_provider_legacy_scenarios.py
+          test/test_android_runtime.py
           -q
