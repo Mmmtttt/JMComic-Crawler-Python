@@ -21,3 +21,10 @@ protocol.credential_guard = credential_guard
 sys.modules.setdefault("protocol", protocol)
 sys.modules.setdefault("protocol.base", base)
 sys.modules.setdefault("protocol.credential_guard", credential_guard)
+
+logger = types.ModuleType("infrastructure.logger")
+logger.error_logger = types.SimpleNamespace(error=lambda *args, **kwargs: None)
+infrastructure = types.ModuleType("infrastructure")
+infrastructure.logger = logger
+sys.modules.setdefault("infrastructure", infrastructure)
+sys.modules.setdefault("infrastructure.logger", logger)
