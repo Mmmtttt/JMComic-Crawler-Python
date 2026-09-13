@@ -11,7 +11,12 @@ for path in (ROOT, ROOT / "lib", ROOT / "lib" / "src"):
 protocol = types.ModuleType("protocol")
 base = types.ModuleType("protocol.base")
 credential_guard = types.ModuleType("protocol.credential_guard")
-base.ProtocolProvider = object
+class ProtocolProvider:
+    def __init__(self, *args, **kwargs):
+        del args, kwargs
+
+
+base.ProtocolProvider = ProtocolProvider
 credential_guard.get_adapter_credential_status = lambda _name, config: {
     "configured": bool((config or {}).get("username") and (config or {}).get("password")),
     "missing_fields": [],
